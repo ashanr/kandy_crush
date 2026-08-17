@@ -14,6 +14,7 @@ import {
   ensurePlayable,
   useHammerBooster,
   useColorBombBooster,
+  activateSpecial,
 } from './board.js';
 
 function boardFromColors(rows) {
@@ -290,5 +291,137 @@ describe('color distribution', () => {
   it('only uses defined colors', () => {
     const board = generateBoard(8, 8);
     board.flat().forEach((cell) => expect(COLORS).toContain(cell.color));
+  });
+});
+
+describe('2x2 square matches (Jelly Fish)', () => {
+  it('detects a 2x2 square as its own shape distinct from line matches', () => {
+    const board = boardFromColors([
+      ['red', 'red', 'blue', 'green'],
+      ['red', 'red', 'green', 'blue'],
+      ['blue', 'green', 'red', 'orange'],
+      ['green', 'blue', 'orange', 'red'],
+    ]);
+    const matches = findMatches(board);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].shape).toBe('square');
+    expect(matches[0].cells).toHaveLength(4);
+    expect(matches[0].color).toBe('red');
+  });
+
+  it('lets a 3-in-a-row claim its cells first, so no overlapping square is also reported', () => {
+    const board = boardFromColors([
+      ['red', 'red', 'red'],
+      ['red', 'red', 'blue'],
+      ['blue', 'green', 'yellow'],
+    ]);
+    const matches = findMatches(board);
+    expect(matches.some((m) => m.shape === 'square')).toBe(false);
+  });
+
+  it('spawns a Jelly Fish special candy from a settled 2x2 square match', () => {
+    // A 2x2 board can never form a 3-length line even after a random
+    // refill, so the spawned fish is guaranteed to survive the cascade.
+    const board = boardFromColors([
+      ['red', 'red'],
+      ['red', 'red'],
+    ]);
+    const jelly = createEmptyJellyGrid(2, 2);
+    const result = resolveBoard(board, jelly, { rng: makeRng(9) });
+    const flat = result.board.flat();
+    expect(flat.some((c) => c.special === SPECIAL.JELLY_FISH)).toBe(true);
+  });
+});
+
+describe('Jelly Fish activation targeting', () => {
+  it('prefers jelly-bearing cells over plain candies', () => {
+    const board = boardFromColors([
+      ['red', 'blue', 'green', 'yellow'],
+      ['orange', 'purple', 'red', 'blue'],
+      ['green', 'yellow', 'purple', 'orange'],
+      ['blue', 'red', 'green', 'yellow'],
+    ]);
+    board[0][0] = createCandy('red', SPECIAL.JELLY_FISH);
+    const jelly = createEmptyJellyGrid(4, 4);
+    jelly[3][3] = 1;
+    jelly[3][2] = 1;
+
+    const explosionCells = new Set();
+    activateSpecial(board, 0, 0, board[0][0], explosionCells, new Set(), { jellyGrid: jelly, rng: makeRng(21) });
+
+    expect(explosionCells.has('3,3')).toBe(true);
+    expect(explosionCells.has('3,2')).toBe(true);
+  });
+});
+
+describe('single detonation (special + normal swap)', () => {
+  it('always succeeds and detonates the special once, even with no conventional match', () => {
+    const board = boardFromColors([
+      ['blue', 'green', 'yellow'],
+      ['orange', 'purple', 'red'],
+      ['green', 'blue', 'yellow'],
+    ]);
+    board[1][1] = createCandy('purple', SPECIAL.STRIPED_H);
+    // Swapping with (1,0) creates no ordinary 3-match — this would have been
+    // rejected by the plain-swap path, but a special+normal swap must always
+    // succeed and simply detonate the special at its new position.
+    const result = attemptMove(board, createEmptyJellyGrid(3, 3), [1, 1], [1, 0]);
+    expect(result.valid).toBe(true);
+    expect(result.score).toBeGreaterThanOrEqual(3 * 10);
+  });
+});
+
+describe('chain detonation within combo blasts', () => {
+  it('a wrapped candy caught in a striped+striped cross beam also detonates its own 3x3 area', () => {
+    const board = boardFromColors([
+      ['red', 'blue', 'green', 'yellow', 'purple'],
+      ['blue', 'green', 'yellow', 'purple', 'red'],
+      ['green', 'orange', 'blue', 'yellow', 'orange'],
+      ['yellow', 'purple', 'red', 'blue', 'green'],
+      ['purple', 'red', 'blue', 'green', 'yellow'],
+    ]);
+    board[2][1] = createCandy('purple', SPECIAL.STRIPED_V);
+    board[2][2] = createCandy('red', SPECIAL.STRIPED_H);
+    board[2][4] = createCandy('orange', SPECIAL.WRAPPED);
+
+    const result = attemptMove(board, createEmptyJellyGrid(5, 5), [2, 1], [2, 2], makeRng(11));
+    expect(result.valid).toBe(true);
+    // Base cross (row 2 + col 2, 1 overlap) = 9 cells, plus the wrapped
+    // candy's 3x3 area contributes at least 4 more cells outside that cross
+    // ((1,3),(1,4),(3,3),(3,4)) once it chain-detonates.
+    expect(result.score).toBeGreaterThanOrEqual(13 * 10);
+  });
+});
+
+describe('special+special pairings with no explicit combo shape', () => {
+  it('Jelly Fish + Striped still clears cells instead of wasting the move', () => {
+    const board = boardFromColors([
+      ['red', 'blue', 'green'],
+      ['orange', 'purple', 'yellow'],
+      ['green', 'red', 'blue'],
+    ]);
+    board[1][1] = createCandy('purple', SPECIAL.JELLY_FISH);
+    board[1][2] = createCandy('yellow', SPECIAL.STRIPED_V);
+    const jelly = createEmptyJellyGrid(3, 3);
+    jelly[0][0] = 1;
+
+    const result = attemptMove(board, jelly, [1, 1], [1, 2], makeRng(17));
+    expect(result.valid).toBe(true);
+    expect(result.score).toBeGreaterThan(0);
+  });
+
+  it('Jelly Fish + Jelly Fish still clears cells instead of wasting the move', () => {
+    const board = boardFromColors([
+      ['red', 'blue', 'green'],
+      ['orange', 'purple', 'yellow'],
+      ['green', 'red', 'blue'],
+    ]);
+    board[1][1] = createCandy('purple', SPECIAL.JELLY_FISH);
+    board[1][2] = createCandy('yellow', SPECIAL.JELLY_FISH);
+    const jelly = createEmptyJellyGrid(3, 3);
+
+    const result = attemptMove(board, jelly, [1, 1], [1, 2], makeRng(23));
+    expect(result.valid).toBe(true);
+    expect(result.score).toBeGreaterThan(0);
   });
 });

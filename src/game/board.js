@@ -3,6 +3,8 @@
 // parallel grid (jellyGrid) so it stays attached to a board position even
 // as candies above it move/fall, matching real Candy Crush semantics.
 
+import { handleSpecialSwap } from './specialCombos.js';
+
 export const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
 
 export const SPECIAL = {
@@ -11,6 +13,7 @@ export const SPECIAL = {
   STRIPED_V: 'striped-v',
   WRAPPED: 'wrapped',
   BOMB: 'bomb',
+  JELLY_FISH: 'jelly-fish',
 };
 
 export const SCORE_PER_CANDY = 10;
@@ -33,11 +36,11 @@ export function createEmptyJellyGrid(rows, cols) {
   return Array.from({ length: rows }, () => Array(cols).fill(0));
 }
 
-function cellKey(r, c) {
+export function cellKey(r, c) {
   return `${r},${c}`;
 }
 
-function parseKey(key) {
+export function parseKey(key) {
   const [r, c] = key.split(',');
   return [Number(r), Number(c)];
 }
@@ -46,7 +49,7 @@ function cloneBoard(board) {
   return board.map((row) => row.slice());
 }
 
-function swapCells(board, [r1, c1], [r2, c2]) {
+export function swapCells(board, [r1, c1], [r2, c2]) {
   const next = cloneBoard(board);
   const tmp = next[r1][c1];
   next[r1][c1] = next[r2][c2];
@@ -64,6 +67,20 @@ function createsImmediateMatch(board, row, r, c, color) {
   }
   if (r >= 2 && board[r - 1][c] && board[r - 2][c] && board[r - 1][c].color === color && board[r - 2][c].color === color) {
     return true;
+  }
+  // 2x2 square (Jelly Fish match): during raster (top-to-bottom,
+  // left-to-right) placement, (r,c) can only ever complete a square as its
+  // bottom-right corner, since the other 3 cells are always placed first.
+  if (r >= 1 && c >= 1) {
+    const topLeft = board[r - 1][c - 1];
+    const topRight = board[r - 1][c];
+    const bottomLeft = row[c - 1];
+    if (
+      topLeft && topRight && bottomLeft
+      && topLeft.color === color && topRight.color === color && bottomLeft.color === color
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -87,7 +104,11 @@ export function generateBoard(rows = 8, cols = 8, rng = Math.random) {
       board.push(row);
     }
     guard += 1;
-  } while (!hasValidMove(board) && guard < 50);
+    // Defense in depth: the per-cell heuristic above should already
+    // guarantee zero matches, but re-verify with the full match scanner
+    // (which also covers shapes the heuristic doesn't reason about) rather
+    // than trusting the heuristic blindly.
+  } while ((findMatches(board).length > 0 || !hasValidMove(board)) && guard < 50);
   return board;
 }
 
@@ -95,7 +116,7 @@ export function generateBoard(rows = 8, cols = 8, rng = Math.random) {
 // Match detection
 // ---------------------------------------------------------------------------
 
-// Returns match groups: { color, cells: [[r,c], ...], shape: 'line-h'|'line-v'|'intersection' }
+// Returns match groups: { color, cells: [[r,c], ...], shape: 'line-h'|'line-v'|'intersection'|'square' }
 export function findMatches(board) {
   const rows = board.length;
   const cols = board[0].length;
@@ -167,10 +188,30 @@ export function findMatches(board) {
     groups.push({ color: run.color, cells: run.cells, shape: 'line-v' });
   });
 
+  // 2x2 square matches are a distinct shape category from lines/T-L shapes.
+  // They only claim cells not already part of a line/intersection group, so
+  // a 3-in-a-row always takes priority over an incidental 2x2 overlap.
+  const claimed = new Set();
+  groups.forEach((g) => g.cells.forEach((cell) => claimed.add(cellKey(...cell))));
+
+  for (let r = 0; r < rows - 1; r += 1) {
+    for (let c = 0; c < cols - 1; c += 1) {
+      const square = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]];
+      const keys = square.map(([rr, cc]) => cellKey(rr, cc));
+      if (keys.some((k) => claimed.has(k))) continue;
+      const color = board[r][c]?.color;
+      if (color && square.every(([rr, cc]) => board[rr][cc]?.color === color)) {
+        groups.push({ color, cells: square, shape: 'square' });
+        keys.forEach((k) => claimed.add(k));
+      }
+    }
+  }
+
   return groups;
 }
 
 function specialForGroup(group) {
+  if (group.shape === 'square') return SPECIAL.JELLY_FISH;
   if (group.shape === 'intersection') return SPECIAL.WRAPPED;
   if (group.cells.length >= 5) return SPECIAL.BOMB;
   if (group.cells.length === 4) return group.shape === 'line-h' ? SPECIAL.STRIPED_H : SPECIAL.STRIPED_V;
@@ -188,12 +229,51 @@ function pickSpawnPosition(group, triggerPos) {
 // Special-candy activation (recursively chains into other specials caught in the blast)
 // ---------------------------------------------------------------------------
 
-function activateSpecial(board, r, c, cell, explosionCells, visited = new Set()) {
+// Jelly Fish targeting: prefers cells that still have jelly on them (so the
+// fish actively helps clear jelly objectives); falls back to random other
+// candies once jelly targets run out. `explosionCells` is passed in so a
+// fish never re-targets a cell that's already part of the same blast.
+function pickJellyFishTargets(board, jellyGrid, r, c, explosionCells, rng, count = 3) {
+  const rows = board.length;
+  const cols = board[0].length;
+  const jellyCandidates = [];
+  const otherCandidates = [];
+
+  for (let rr = 0; rr < rows; rr += 1) {
+    for (let cc = 0; cc < cols; cc += 1) {
+      if (rr === r && cc === c) continue;
+      if (!board[rr][cc]) continue;
+      if (explosionCells.has(cellKey(rr, cc))) continue;
+      if (jellyGrid && jellyGrid[rr]?.[cc] > 0) jellyCandidates.push([rr, cc]);
+      else otherCandidates.push([rr, cc]);
+    }
+  }
+
+  const pickRandom = (pool, n) => {
+    const remaining = [...pool];
+    const picked = [];
+    while (picked.length < n && remaining.length > 0) {
+      const idx = Math.floor(rng() * remaining.length);
+      picked.push(remaining[idx]);
+      remaining.splice(idx, 1);
+    }
+    return picked;
+  };
+
+  const picks = pickRandom(jellyCandidates, count);
+  if (picks.length < count) {
+    picks.push(...pickRandom(otherCandidates, count - picks.length));
+  }
+  return picks;
+}
+
+export function activateSpecial(board, r, c, cell, explosionCells, visited = new Set(), ctx = {}) {
   const key = cellKey(r, c);
   if (visited.has(key)) return;
   visited.add(key);
   explosionCells.add(key);
 
+  const { jellyGrid = null, rng = Math.random } = ctx;
   const rows = board.length;
   const cols = board[0].length;
   const cellsToActivate = [];
@@ -214,6 +294,8 @@ function activateSpecial(board, r, c, cell, explosionCells, visited = new Set())
         if (board[rr][cc] && board[rr][cc].color === cell.color) cellsToActivate.push([rr, cc]);
       }
     }
+  } else if (cell.special === SPECIAL.JELLY_FISH) {
+    cellsToActivate.push(...pickJellyFishTargets(board, jellyGrid, r, c, explosionCells, rng));
   }
 
   cellsToActivate.forEach(([rr, cc]) => {
@@ -222,7 +304,7 @@ function activateSpecial(board, r, c, cell, explosionCells, visited = new Set())
     explosionCells.add(k);
     const other = board[rr][cc];
     if (other && other.special && other.special !== SPECIAL.NONE) {
-      activateSpecial(board, rr, cc, other, explosionCells, visited);
+      activateSpecial(board, rr, cc, other, explosionCells, visited, ctx);
     }
   });
 }
@@ -292,11 +374,12 @@ export function resolveBoard(board, jellyGrid, { triggerPos = null, rng = Math.r
     pendingTrigger = null;
 
     const explosionCells = new Set();
+    const ctx = { jellyGrid: jelly, rng };
     toClear.forEach((key) => {
       const [r, c] = parseKey(key);
       const cell = current[r][c];
       if (cell && cell.special !== SPECIAL.NONE) {
-        activateSpecial(current, r, c, cell, explosionCells);
+        activateSpecial(current, r, c, cell, explosionCells, new Set(), ctx);
       }
     });
     explosionCells.forEach((k) => toClear.add(k));
@@ -322,7 +405,7 @@ export function resolveBoard(board, jellyGrid, { triggerPos = null, rng = Math.r
   return { board: current, jellyGrid: jelly, score: totalScore, cascadeSteps, cascadeCount: cascadeLevel };
 }
 
-function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.random) {
+export function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.random) {
   const current = cloneBoard(board);
   const jelly = jellyGrid.map((row) => row.slice());
 
@@ -347,81 +430,12 @@ function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.random) {
 }
 
 // ---------------------------------------------------------------------------
-// Special + special combo table (swapping two specials together).
-// bomb + anything is handled separately since a bomb combined with a normal
-// candy is also a defined combo, not just special+special.
-// ---------------------------------------------------------------------------
-
-function resolveBombCombo(board, jellyGrid, posBomb, posOther, otherCell, rng = Math.random) {
-  const rows = board.length;
-  const cols = board[0].length;
-  const explosionCells = new Set();
-
-  if (otherCell.special === SPECIAL.BOMB) {
-    for (let rr = 0; rr < rows; rr += 1) {
-      for (let cc = 0; cc < cols; cc += 1) explosionCells.add(cellKey(rr, cc));
-    }
-  } else {
-    for (let rr = 0; rr < rows; rr += 1) {
-      for (let cc = 0; cc < cols; cc += 1) {
-        const cell = board[rr][cc];
-        if (cell && cell.color === otherCell.color) {
-          if (otherCell.special !== SPECIAL.NONE) {
-            activateSpecial(board, rr, cc, { ...cell, special: otherCell.special }, explosionCells);
-          } else {
-            explosionCells.add(cellKey(rr, cc));
-          }
-        }
-      }
-    }
-  }
-  // The bomb and the candy it was swapped with are always consumed, even if
-  // the bomb's own color never matched otherCell's color scan above.
-  explosionCells.add(cellKey(...posBomb));
-  explosionCells.add(cellKey(...posOther));
-  return clearAndCascade(board, jellyGrid, explosionCells, rng);
-}
-
-function resolveSpecialCombo(board, jellyGrid, posB, cellA, cellB, rng = Math.random) {
-  const [r, c] = posB;
-  const rows = board.length;
-  const cols = board[0].length;
-  const explosionCells = new Set();
-
-  const types = [cellA.special, cellB.special];
-  const isStriped = (t) => t === SPECIAL.STRIPED_H || t === SPECIAL.STRIPED_V;
-  const stripedCount = types.filter(isStriped).length;
-  const wrappedCount = types.filter((t) => t === SPECIAL.WRAPPED).length;
-
-  if (stripedCount === 2) {
-    for (let cc = 0; cc < cols; cc += 1) explosionCells.add(cellKey(r, cc));
-    for (let rr = 0; rr < rows; rr += 1) explosionCells.add(cellKey(rr, c));
-  } else if (stripedCount === 1 && wrappedCount === 1) {
-    for (let dr = -1; dr <= 1; dr += 1) {
-      const rr = r + dr;
-      if (rr >= 0 && rr < rows) {
-        for (let cc = 0; cc < cols; cc += 1) explosionCells.add(cellKey(rr, cc));
-      }
-    }
-    for (let dc = -1; dc <= 1; dc += 1) {
-      const cc = c + dc;
-      if (cc >= 0 && cc < cols) {
-        for (let rr = 0; rr < rows; rr += 1) explosionCells.add(cellKey(rr, cc));
-      }
-    }
-  } else if (wrappedCount === 2) {
-    for (let rr = r - 2; rr <= r + 2; rr += 1) {
-      for (let cc = c - 2; cc <= c + 2; cc += 1) {
-        if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) explosionCells.add(cellKey(rr, cc));
-      }
-    }
-  }
-
-  return clearAndCascade(board, jellyGrid, explosionCells, rng);
-}
-
-// ---------------------------------------------------------------------------
-// Public move API
+// Public move API. Special-candy-involved swaps (bomb combos, special+special
+// combos, and special+normal single detonations) are delegated to
+// specialCombos.js. That module imports primitives back from this file,
+// making this a circular import — safe here because handleSpecialSwap is
+// only ever invoked at call time (inside attemptMove), never during either
+// module's own top-level evaluation.
 // ---------------------------------------------------------------------------
 
 export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
@@ -434,16 +448,8 @@ export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
   const cellA = board[r1][c1];
   const cellB = board[r2][c2];
 
-  if (cellA.special === SPECIAL.BOMB || cellB.special === SPECIAL.BOMB) {
-    const bombIsA = cellA.special === SPECIAL.BOMB;
-    const posBomb = bombIsA ? posA : posB;
-    const posOther = bombIsA ? posB : posA;
-    const otherCell = bombIsA ? cellB : cellA;
-    return resolveBombCombo(board, jellyGrid, posBomb, posOther, otherCell, rng);
-  }
-
-  if (cellA.special !== SPECIAL.NONE && cellB.special !== SPECIAL.NONE) {
-    return resolveSpecialCombo(board, jellyGrid, posB, cellA, cellB, rng);
+  if (cellA.special !== SPECIAL.NONE || cellB.special !== SPECIAL.NONE) {
+    return handleSpecialSwap(board, jellyGrid, posA, posB, cellA, cellB, rng);
   }
 
   const swapped = swapCells(board, posA, posB);

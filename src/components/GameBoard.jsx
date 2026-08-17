@@ -8,36 +8,46 @@ import {
   useHammerBooster,
   useShuffleBooster,
   useColorBombBooster,
+  SPECIAL,
 } from '../game/board.js';
-import { playPop, playSwap, playSpecialCreate, playCombo, playInvalid, unlockAudio } from '../utils/sound.js';
+import {
+  playPop,
+  playSwap,
+  playSpecialCreate,
+  playCombo,
+  playInvalid,
+  playLaser,
+  playHeavyExplosion,
+  playElectricZap,
+  playMegaBlast,
+  unlockAudio,
+  playSinhalaAnnouncer,
+  playSinhalaWin,
+  playSinhalaLose,
+} from '../utils/sound.js';
 import { haptics } from '../utils/haptics.js';
 import AnnouncerOverlay from './AnnouncerOverlay.jsx';
 import BoosterBar from './BoosterBar.jsx';
 
+import CandySprite from './CandySprite.jsx';
+import ParticleCanvas from './ParticleCanvas.jsx';
+import { globalParticleEngine } from '../utils/particles.js';
+
 const ROWS = 8;
 const COLS = 8;
 
-// Each color also gets a distinct shape so the game stays playable for
-// colorblind players (shape + color redundancy, not color alone).
-const SHAPE_BY_COLOR = {
-  red: 'circle',
-  orange: 'square',
-  yellow: 'triangle',
-  green: 'diamond',
-  blue: 'hexagon',
-  purple: 'star',
-};
-
-const COLOR_HEX = {
-  red: '#ff4d6d',
-  orange: '#ff9f43',
-  yellow: '#ffd93d',
-  green: '#4ade80',
-  blue: '#38bdf8',
-  purple: '#c084fc',
-};
-
 const DEFAULT_BOOSTERS = { hammer: 1, shuffle: 1, bomb: 1 };
+
+function pickComboSound(specialTypes) {
+  if (specialTypes.length === 0) return null;
+  if (specialTypes.length === 2) return playMegaBlast;
+  const [type] = specialTypes;
+  if (type === SPECIAL.BOMB) return playElectricZap;
+  if (type === SPECIAL.WRAPPED) return playHeavyExplosion;
+  if (type === SPECIAL.STRIPED_H || type === SPECIAL.STRIPED_V) return playLaser;
+  if (type === SPECIAL.JELLY_FISH) return playElectricZap;
+  return null;
+}
 
 export default function GameBoard({ level, onWin, onLose, onExit }) {
   const [board, setBoard] = useState(null);
@@ -49,6 +59,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const [message, setMessage] = useState(null);
   const [boosterCounts, setBoosterCounts] = useState(DEFAULT_BOOSTERS);
   const [activeBooster, setActiveBooster] = useState(null);
+  const gridRef = useRef(null);
   const dragStart = useRef(null);
   const outcomeSignaled = useRef(false);
 
@@ -72,26 +83,69 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       const jellyLeft = nextJelly.flat().reduce((sum, v) => sum + v, 0);
       if (level.objective.type === 'score' && nextScore >= level.objective.target) {
         outcomeSignaled.current = true;
+        playSinhalaWin();
         onWin?.(nextScore);
         return;
       }
       if (level.objective.type === 'jelly' && jellyLeft === 0) {
         outcomeSignaled.current = true;
+        playSinhalaWin();
         onWin?.(nextScore);
         return;
       }
       if (nextMoves <= 0) {
         outcomeSignaled.current = true;
+        playSinhalaLose();
         onLose?.(nextScore);
       }
     },
     [level, onWin, onLose],
   );
 
+  const triggerFX = useCallback((posA, posB, result, specialTypes) => {
+    if (!gridRef.current) return;
+    const rect = gridRef.current.getBoundingClientRect();
+    const cellW = rect.width / COLS;
+    const cellH = rect.height / ROWS;
+
+    const getCenter = ([r, c]) => ({
+      x: (c + 0.5) * cellW,
+      y: (r + 0.5) * cellH,
+    });
+
+    const posACenter = getCenter(posA);
+
+    // Particle Shards
+    globalParticleEngine.spawnMatchBurst(posACenter.x, posACenter.y, '#ffd93d', 18);
+
+    // Special FX
+    if (specialTypes.includes(SPECIAL.STRIPED_H)) {
+      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'horizontal', rect.width, rect.height, '#38bdf8');
+    }
+    if (specialTypes.includes(SPECIAL.STRIPED_V)) {
+      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'vertical', rect.width, rect.height, '#38bdf8');
+    }
+    if (specialTypes.includes(SPECIAL.WRAPPED)) {
+      globalParticleEngine.spawnWrappedShockwave(posACenter.x, posACenter.y, 140, '#c084fc');
+    }
+    if (specialTypes.includes(SPECIAL.BOMB)) {
+      const targets = [
+        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
+        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
+        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
+      ];
+      globalParticleEngine.spawnLightningArc(posACenter.x, posACenter.y, targets, '#ffd93d');
+    }
+  }, []);
+
   const performMove = useCallback(
     (posA, posB) => {
       if (busy || !board) return;
       unlockAudio();
+      const cellA = board[posA[0]][posA[1]];
+      const cellB = board[posB[0]][posB[1]];
+      const specialTypes = [cellA.special, cellB.special].filter((s) => s !== SPECIAL.NONE);
+
       const result = attemptMove(board, jellyGrid, posA, posB);
       if (!result.valid) {
         playInvalid();
@@ -103,16 +157,30 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       playSwap();
       haptics.swap();
 
-      if (result.cascadeCount > 1) {
+      triggerFX(posA, posB, result, specialTypes);
+
+      const comboSound = pickComboSound(specialTypes);
+      if (comboSound) {
+        window.setTimeout(() => {
+          comboSound();
+          haptics.combo();
+        }, 120);
+        const comboMsg = specialTypes.length === 2 ? 'වැඩක් නෑ කතා කරලා!' : 'පට්ට!';
+        setMessage(comboMsg);
+        playSinhalaAnnouncer(specialTypes.length === 2 ? 5 : 3);
+      } else if (result.cascadeCount > 1) {
         window.setTimeout(() => {
           playCombo(result.cascadeCount);
           haptics.combo();
         }, 150);
-        setMessage(result.cascadeCount >= 3 ? 'Sugar Crush!' : 'Tasty!');
+        const comboMsg = result.cascadeCount >= 4 ? 'වැඩක් නෑ කතා කරලා!' : result.cascadeCount === 3 ? 'එළකිරි!' : 'පට්ට!';
+        setMessage(comboMsg);
+        playSinhalaAnnouncer(result.cascadeCount);
       } else {
         playPop();
         haptics.match();
-        setMessage('Sweet!');
+        setMessage('නියමයි!');
+        playSinhalaAnnouncer(2);
       }
 
       const { board: playableBoard, reshuffled } = ensurePlayable(result.board);
@@ -124,7 +192,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       setScore(nextScore);
       setMovesLeft(nextMoves);
       setSelected(null);
-      if (reshuffled) setMessage('Shuffling...');
+      if (reshuffled) setMessage('මාරු වෙනවා...');
 
       window.setTimeout(() => {
         setMessage(null);
@@ -132,7 +200,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         checkOutcome(nextScore, nextMoves, result.jellyGrid);
       }, 550);
     },
-    [board, jellyGrid, score, movesLeft, busy, checkOutcome],
+    [board, jellyGrid, score, movesLeft, busy, checkOutcome, triggerFX],
   );
 
   const applyBooster = useCallback(
@@ -233,7 +301,12 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         {level.objective.type === 'jelly' && <div className="hud-stat">Jelly: {jellyRemaining}</div>}
       </div>
 
-      <div className="game-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
+      <div
+        ref={gridRef}
+        className="game-grid"
+        style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
+      >
+        <ParticleCanvas width={360} height={360} />
         {board.map((row, r) =>
           row.map((cell, c) => (
             <div
@@ -243,15 +316,18 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
               onPointerUp={handlePointerUp}
             >
               {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
-              <motion.div
-                layout
-                layoutId={`candy-${cell.id}`}
-                className={`candy shape-${SHAPE_BY_COLOR[cell.color]} special-${cell.special}`}
-                style={{ backgroundColor: COLOR_HEX[cell.color] }}
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-              />
+                <motion.div
+                  layout
+                  layoutId={`candy-${cell.id}`}
+                  className="candy-wrapper"
+                  initial={{ scale: 0.5, opacity: 0, rotate: -15 }}
+                  animate={{ scale: [1.2, 0.85, 1.05, 1], opacity: 1, rotate: 0 }}
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  whileTap={{ scale: 0.9, rotate: -5 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                >
+                  <CandySprite color={cell.color} special={cell.special} size={42} />
+                </motion.div>
             </div>
           )),
         )}
@@ -267,3 +343,4 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     </div>
   );
 }
+

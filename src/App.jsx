@@ -66,15 +66,15 @@ export default function App() {
         {result && (
           <div className="result-modal">
             <div className="result-card">
-              <h2>{result.outcome === 'win' ? 'Level Complete!' : 'Out of Moves'}</h2>
-              <p>Score: {result.score}</p>
+              <h2>{result.outcome === 'win' ? 'දින්නා! 🎉' : 'අයියෝ! Moves ඉවරයි 😢'}</h2>
+              <p>ලකුණු (Score): {result.score}</p>
               {result.outcome === 'win' && (
                 <div className="result-stars">
                   {'★'.repeat(result.stars)}
                   {'☆'.repeat(3 - result.stars)}
                 </div>
               )}
-              <button type="button" onClick={closeResult}>Continue</button>
+              <button type="button" onClick={closeResult}>ඉදිරියට (Continue)</button>
             </div>
           </div>
         )}

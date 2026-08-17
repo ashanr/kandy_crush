@@ -6,6 +6,9 @@
   --text-light: #fff6fb;
   --card-bg: rgba(255, 255, 255, 0.08);
   --card-border: rgba(255, 255, 255, 0.18);
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-glow: rgba(255, 93, 162, 0.15);
 }
 
 * {
@@ -35,13 +38,10 @@ button {
 /* ---------------- Saga Map ---------------- */
 
 .saga-map {
-  min-height: 100vh;
-  padding: calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 16px)
-    calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 16px);
+  height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
 }
 
 .saga-title {
@@ -56,12 +56,54 @@ button {
   color: transparent;
 }
 
-.saga-path {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 20px;
+.saga-header {
+  width: 100%;
   max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 16px) 16px 16px;
+  background: linear-gradient(180deg, var(--bg-deep) 40%, transparent);
+  z-index: 10;
+}
+
+.saga-scroll-area {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  /* Hide scrollbar */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.saga-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+.saga-path {
+  position: relative;
+  width: 100%;
+}
+
+/* Floating Clouds Parallax Effect */
+.cloud {
+  position: absolute;
+  font-size: 4rem;
+  opacity: 0.15;
+  filter: blur(2px);
+  animation: floatCloud 25s linear infinite;
+  pointer-events: none;
+}
+.cloud-1 { top: 10%; left: -10%; animation-duration: 35s; font-size: 5rem; }
+.cloud-2 { top: 40%; right: -15%; animation-duration: 28s; font-size: 3rem; }
+.cloud-3 { top: 70%; left: -5%; animation-duration: 30s; font-size: 4.5rem; }
+.cloud-4 { top: 90%; right: 5%; animation-duration: 40s; font-size: 6rem; }
+
+@keyframes floatCloud {
+  from { transform: translateX(0); }
+  to { transform: translateX(150vw); }
 }
 
 .level-node {
@@ -83,6 +125,17 @@ button {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   color: rgba(255, 255, 255, 0.45);
+}
+
+.level-node.current-level {
+  animation: pulse-node 2s infinite;
+  border-color: var(--accent-2);
+}
+
+@keyframes pulse-node {
+  0% { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(255, 217, 61, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0); }
 }
 
 .level-number {
@@ -111,6 +164,11 @@ button {
     calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
   position: relative;
   touch-action: none;
+  /* Animated gradient background for depth */
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(255, 93, 162, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at top, var(--bg-mid), var(--bg-deep) 70%);
 }
 
 .game-hud {
@@ -125,21 +183,32 @@ button {
 }
 
 .hud-btn {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   color: var(--text-light);
   border-radius: 999px;
   padding: 6px 14px;
   font-weight: 600;
+  transition: all 0.2s;
+}
+
+.hud-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .hud-stat {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 0.85rem;
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .game-grid {
@@ -147,11 +216,42 @@ button {
   max-width: 480px;
   aspect-ratio: 1 / 1;
   display: grid;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 16px;
-  padding: 6px;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+  gap: 2px;
+  /* Glassmorphism */
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-radius: 20px;
+  padding: 8px;
+  /* Multi-layer glow border */
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 60px -10px var(--glass-glow);
+  /* Top edge highlight for 3D depth */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glossy top reflection */
+.game-grid::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 100%
+  );
+  border-radius: 20px 20px 50% 50%;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .candy-cell {
@@ -161,12 +261,21 @@ button {
   justify-content: center;
   touch-action: none;
   border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.15s;
+  z-index: 1;
+}
+
+.candy-cell:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .candy-cell.selected {
   outline: 3px solid var(--accent-2);
   outline-offset: -3px;
   border-radius: 10px;
+  background: rgba(255, 217, 61, 0.1);
+  box-shadow: 0 0 12px rgba(255, 217, 61, 0.2);
 }
 
 .jelly-overlay {
@@ -180,6 +289,17 @@ button {
 
 .jelly-overlay.layer-2 {
   background: rgba(56, 189, 248, 0.55);
+}
+
+.candy-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0px 3px 5px rgba(0, 0, 0, 0.35));
+  cursor: pointer;
+  touch-action: none;
 }
 
 .candy {
@@ -229,6 +349,44 @@ button {
 
 .candy.special-bomb {
   box-shadow: 0 0 12px 4px rgba(255, 255, 255, 0.8), inset 0 -3px 4px rgba(0, 0, 0, 0.25);
+}
+
+.candy.special-jelly-fish {
+  border-radius: 45% 45% 50% 50% / 60% 60% 40% 40%;
+  overflow: visible;
+  animation: fish-bob 1.6s ease-in-out infinite;
+}
+.candy.special-jelly-fish::after {
+  content: '';
+  position: absolute;
+  right: -16%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32%;
+  height: 55%;
+  background: inherit;
+  clip-path: polygon(0 20%, 100% 0, 100% 100%, 0 80%);
+  opacity: 0.85;
+}
+.candy.special-jelly-fish::before {
+  content: '';
+  position: absolute;
+  left: 26%;
+  top: 30%;
+  width: 14%;
+  height: 14%;
+  background: #1c1c28;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+@keyframes fish-bob {
+  0%, 100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(3deg);
+  }
 }
 
 /* ---------------- Booster Bar ---------------- */
@@ -335,4 +493,76 @@ button {
   font-weight: 700;
   padding: 10px 28px;
   border-radius: 999px;
+}
+
+/* ---------------- Settings ---------------- */
+
+.saga-header {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.settings-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-light);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.settings-btn:active {
+  transform: scale(0.9);
+}
+
+.settings-card {
+  min-width: 300px;
+}
+
+.settings-option {
+  margin: 24px 0;
+  text-align: left;
+}
+
+.settings-option label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--accent-2);
+}
+
+.voice-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-btn {
+  flex: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-light);
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.toggle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 93, 162, 0.4);
+}
+
+.close-btn {
+  width: 100%;
+  background: rgba(255,255,255,0.1) !important;
+  border: 1px solid var(--card-border) !important;
 }

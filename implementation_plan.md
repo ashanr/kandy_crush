@@ -1,6 +1,6 @@
-# Implementation Plan - Candy Crush Special Candies & Combinations Engine
+# Implementation Plan - Visual & Animation Enhancements 🎨✨
 
-Expand the Candy Crush Saga clone with a full **Special Candies & Combination System**. This includes creation detection (4-in-a-row, T/L shapes, 5-in-a-line, 2x2 squares), unique tile rendering/animations, detonation mechanics, and explosive special-candy-on-special-candy combo swaps.
+Elevate the Candy Crush game experience with high-end visual FX, explosive HTML5 Canvas particle bursts, laser beams, lightning arcs, glossy Sri Lankan candy graphics, and fluid tile drop physics.
 
 ---
 
@@ -8,98 +8,67 @@ Expand the Candy Crush Saga clone with a full **Special Candies & Combination Sy
 
 ```mermaid
 graph TD
-    A[Swap / Match Detector] -->|4 in a line| B[Striped Candy (Row/Col)]
-    A -->|T / L Shape| C[Wrapped Candy (3x3 Explosive)]
-    A -->|5 in a line| D[Color Bomb (Choco Donut)]
-    A -->|2 x 2 Square| E[Jelly Fish (Target Seeking)]
+    A[GameBoard Component] --> B[React Grid UI with Glossy SVG Sprites]
+    A --> C[Particle Canvas Overlay Engine]
     
-    F[Special Candy Swapped] -->|Special + Normal| G[Single Detonation]
-    F -->|Special + Special| H[Combo Explosion Engine]
+    C -->|Normal Match| D[Burst Candy Shards & Sparkles]
+    C -->|Striped Detonation| E[Glowing Laser Energy Beam & Sparks]
+    C -->|Wrapped Detonation| F[Radial Shockwave & Debris Explosion]
+    C -->|Color Bomb Detonation| G[Animated Electric Lightning Arcs]
     
-    H -->|Striped + Striped| I[Cross Row+Col Beam]
-    H -->|Striped + Wrapped| J[Giant 3-Line Mega Beam]
-    H -->|Color Bomb + Striped| K[Board-wide Striped Detonator]
-    H -->|Color Bomb + Color Bomb| L[Full Board Wipeout]
+    B -->|Falling Candies| H[Framermotion Squash & Stretch Bounce Physics]
 ```
 
 ---
 
-## 🍬 Special Candies Specification
+## 🎨 Key Features & Components
 
-### 1. Special Candy Creation Rules
-- **Horizontal 4-Match**: Spawns a **Horizontal Striped Candy** (striped lines going left/right).
-- **Vertical 4-Match**: Spawns a **Vertical Striped Candy** (striped lines going up/down).
-- **T-Shape or L-Shape (5 Tiles)**: Spawns a **Wrapped Candy** (shiny candy wrapper with inner glow).
-- **5-in-a-Line Match**: Spawns a **Color Bomb** (chocolate ball with rainbow sprinkles).
-- **2x2 Square Match**: Spawns a **Jelly Fish** (swimming fish tile).
+### 1. Particle Overlay Canvas Engine (`src/utils/particles.js`, `src/components/ParticleCanvas.jsx`)
+- **Particle Overlay Layer**: Transparent `<canvas>` overlaid on top of the game board with `pointer-events: none` running a 60 FPS requestAnimationFrame render loop.
+- **Match Particles**: Spawns 15–20 glowing color-matched shard particles that explode outward with randomized velocity, gravity deceleration, and smooth fade-out.
+- **Striped Laser Energy Beams**: Renders expanding laser beams with core white-hot energy lines, glowing outer halos, and drifting trailing sparks.
+- **Color Bomb Lightning Arcs**: Draws animated electrical lightning bolts (`ctx.beginPath()` with procedural zig-zag jitter) connecting the Color Bomb to every target candy on the board.
+- **Wrapped Shockwaves**: Renders expanding double radial shockwave rings with smoke rings and debris.
 
-### 2. Individual Detonation Behaviors
-- **Striped Candy**: Clears the entire row (Horizontal) or column (Vertical), triggering any secondary special candies in its path.
-- **Wrapped Candy**: Explodes all surrounding 3x3 tiles, drops with gravity, and explodes a second 3x3 area!
-- **Color Bomb**: Swapping with any normal candy removes ALL candies of that color across the board.
-- **Jelly Fish**: Spawns 3 animated fish that swim to target jelly tiles, isolated candies, or level objectives.
+### 2. Glossy Sri Lankan SVG Candy Art (`src/components/CandySprite.jsx`)
+- Glossy, vibrant 2D SVG candy designs with Sri Lankan artistic touches:
+  - 🔴 **Red (Kavum Dome)**: Rich ruby dome with glossy reflection highlights.
+  - 🟡 **Yellow (Kokis Star)**: Golden Sri Lankan Kokis star pattern with radial shimmer.
+  - 🟢 **Green (Dodol Diamond)**: Crystalline emerald diamond with bevel highlights.
+  - 🟣 **Purple (Royal Star)**: Deep violet star with inner sparkle glow.
+  - 🔵 **Blue (Ocean Hexagon)**: Deep blue hexagon with glassmorphic gradients.
+  - 🟠 **Orange (Mango Square)**: Vibrant orange rounded tile with 3D gradient depth.
 
-### 3. Special Candy Swap Combinations (Swapping 2 Specials)
-- ⚡ **Striped + Striped**: Detonates a giant cross-beam clearing the entire row AND column regardless of stripe orientation.
-- 💣 **Striped + Wrapped**: Turns into a giant 3-tile wide column and 3-tile wide row mega-beam that destroys 1/3 of the board!
-- 💥 **Wrapped + Wrapped**: Giant 5x5 area double explosion.
-- 🌈 **Color Bomb + Striped**: Changes **ALL** candies on the board matching the color of the striped candy into striped candies, then detonates every single one simultaneously!
-- 🎆 **Color Bomb + Wrapped**: Changes all candies of that color into wrapped candies and detonates them!
-- 🌌 **Color Bomb + Color Bomb**: Destroys every single candy and layer of jelly on the entire 8x8 board!
+### 3. Squash-and-Stretch Drop Physics (`src/components/GameBoard.jsx`)
+- **Landing Bounce**: When candies drop from above, apply a subtle squash-and-stretch elasticity animation (`scaleY: 1.15` $\rightarrow$ `scaleY: 0.9` $\rightarrow$ `scaleY: 1.0`) for organic, satisfying motion.
+- **Tile Swap Pathing**: Smooth spring-physics transition when tiles swap positions.
 
 ---
 
 ## Proposed File Changes
 
-### Core Game Engine Logic
+### [NEW] [src/utils/particles.js](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/utils/particles.js)
+- Core particle physics engine: particle creation, velocity updating, canvas rendering routines for shards, lasers, shockwaves, and lightning arcs.
 
-#### [MODIFY] [src/game/board.js](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/game/board.js)
-- Extend match detection logic to detect shape patterns (Line of 4, T/L shape, Line of 5, 2x2 square) before clearing tiles.
-- Add special candy creation flags: `type: 'striped-h' | 'striped-v' | 'wrapped' | 'color-bomb' | 'jelly-fish'`.
-- Add special candy detonation logic:
-  - `detonateStriped(row, col, direction)`
-  - `detonateWrapped(row, col)`
-  - `detonateColorBomb(color)`
-  - `detonateCombo(special1, special2)`
-- Implement recursive trigger chain (a striped beam exploding another wrapped candy detonates the wrapped candy).
+### [NEW] [src/components/ParticleCanvas.jsx](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/components/ParticleCanvas.jsx)
+- HTML5 Canvas React wrapper component listening to match/explosion events and animating FX overlay.
 
-#### [NEW] [src/game/specialCombos.js](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/game/specialCombos.js)
-- Isolated math & grid state transformations for special-on-special candy swaps (`handleSpecialSwap(tileA, tileB, grid)`).
+### [NEW] [src/components/CandySprite.jsx](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/components/CandySprite.jsx)
+- Glossy SVG candy sprite renderer supporting normal candies, striped overlay lines, wrapped candy glow wrappers, and Color Bomb sprinkle donuts.
 
----
-
-### Rendering & Audio FX
-
-#### [MODIFY] [src/components/GameBoard.jsx](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/components/GameBoard.jsx)
-- Render custom SVG/CSS overlays for special candies:
-  - White stripe animations for Striped Candies.
-  - Wrapper pulse effect for Wrapped Candies.
-  - Rainbow sprinkle particle orbit for Color Bomb.
-  - Fish tail animation for Jelly Fish.
-- Canvas laser beam effects for Striped beam clears and Color Bomb lightning arcs.
-
-#### [MODIFY] [src/utils/sound.js](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/utils/sound.js)
-- Add distinct synthesized sound effects:
-  - Laser zap for Striped Candies.
-  - Heavy bass explosion for Wrapped Candies.
-  - Electric zap/chime for Color Bomb.
-  - Mega combo blast sound for Color Bomb + Striped combination.
+### [MODIFY] [src/components/GameBoard.jsx](file:///c:/Users/asus/Documents/apps/candy_crush_saga/src/components/GameBoard.jsx)
+- Connect Particle Canvas overlay to board matches and special detonations.
+- Apply `CandySprite` and squash-and-stretch Framer Motion animation properties to grid tiles.
 
 ---
 
 ## Verification Plan
 
-### Automated Tests
-- Run `npm run build` to ensure all special candy combo functions compile without syntax or type errors.
+### Automated Tests & Build Verification
+- Execute `cmd /c "npm run build"` to verify all canvas animation code compiles without syntax or bundle errors.
 
 ### Manual Verification
-1. **Creation Testing**:
-   - Create 4-in-a-row $\rightarrow$ verify Striped candy spawns at swap position.
-   - Create T/L shape $\rightarrow$ verify Wrapped candy spawns.
-   - Create 5-in-a-line $\rightarrow$ verify Color Bomb spawns.
-2. **Combo Swap Testing**:
-   - Swap Striped + Striped $\rightarrow$ verify row and column both clear.
-   - Swap Color Bomb + Striped $\rightarrow$ verify board candies turn into striped candies and detonate in cascade.
-   - Swap Color Bomb + Color Bomb $\rightarrow$ verify complete board wipeout.
-3. **Sound & Haptics**:
-   - Verify laser sounds for striped beams and heavy vibration feedback on big combos.
+1. **Match Particles**: Make 3-candy matches and verify color-matched particle bursts explode and fade smoothly.
+2. **Striped Lasers**: Detonate a Striped Candy and verify glowing row/column laser beam sweeps across the grid.
+3. **Color Bomb Lightning**: Swap a Color Bomb and verify electric lightning bolts arc to all matching candies.
+4. **Candy Graphics**: Verify glossy SVG candies render clearly on mobile viewports.

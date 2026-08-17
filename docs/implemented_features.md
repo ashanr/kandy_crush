@@ -1,0 +1,123 @@
+# Implemented Features
+
+This document provides a comprehensive overview of all features currently built and fully operational in this Candy Crush Saga clone repository.
+
+---
+
+## 🎮 1. Core Match-3 Game Engine (`src/game/board.js`)
+
+- **Dynamic 8x8 Grid**: Full grid management supporting candy spawning, movement, matching, and falling gravity physics.
+- **Touch & Swipe Controls**: Intuitive mobile drag-and-swipe interaction for swapping adjacent tiles.
+- **Invalid Swap Rejection**: A swap that creates no match (and involves no special candy) is rejected before any state change — the board never visibly moves, and a rejection sound/haptic plays instead. There is currently no "swap forward then animate back" motion; the board simply doesn't change.
+- **Cascading Combo Engine**: Continuous automatic matching of falling candies with increasing score multipliers for multi-stage cascades (capped at 25 iterations as a safety guard against pathological refills).
+- **No-Match Detection & Reshuffle**: Automatic detection when no valid moves remain on the board, triggering an automatic board reshuffle.
+
+---
+
+## 🍬 2. Special Candies & Combo System (`src/game/board.js`, `src/game/specialCombos.js`)
+
+- **Striped Candies**:
+  - **Horizontal 4-Match**: Creates a **Horizontal Striped Candy** that clears its entire row upon detonation.
+  - **Vertical 4-Match**: Creates a **Vertical Striped Candy** that clears its entire column upon detonation.
+- **Wrapped Candies**:
+  - **T-Shape / L-Shape Match**: Creates a **Wrapped Candy** that explodes a 3x3 area on detonation.
+- **Color Bombs**:
+  - **5-in-a-Line Match**: Creates a **Color Bomb**. Swapping it with any candy wipes all candies of that color from the board.
+- **Jelly Fish**:
+  - **2x2 Square Match**: Creates a **Jelly Fish** (yields to any overlapping 3-in-a-row — line matches always take priority over a square).
+  - **Detonation**: Targets 3 cells, preferring cells that still carry jelly; falls back to random candies once jelly targets are exhausted.
+- **Special + Normal Swap → Single Detonation**: Swapping any special candy with a plain candy always succeeds (even with no incidental 3-match) and detonates the special once at its new position.
+- **Special-on-Special Swap Combos** (`src/game/specialCombos.js`):
+  - **Striped + Striped**: Cross-beam clearing the entire row AND column.
+  - **Striped + Wrapped**: 3-row & 3-column mega beam.
+  - **Wrapped + Wrapped**: 5x5 double-explosion area.
+  - **Color Bomb + Striped/Wrapped**: Converts every candy of that color into the other special and detonates them all simultaneously.
+  - **Color Bomb + Color Bomb**: Clears every tile on the board.
+  - **Any other pairing** (e.g. Jelly Fish + Striped, Jelly Fish + Wrapped, Jelly Fish + Jelly Fish): falls back to each special detonating its own individual effect at its own position — the move always does *something*, it just doesn't yet have a bespoke combo shape. See `docs/missing_features.md` for the flavor-specific combos still to design (e.g. "Striped Fish", fish swarms).
+- **Chain Reactions**: Any special candy caught inside another special's blast radius (from a match cascade OR a combo swap) also detonates, recursively.
+
+---
+
+## 🗺️ 3. Saga World Map & Progress (`src/components/SagaMap.jsx`, `src/App.jsx`)
+
+- **Animated winding path**: level nodes are positioned along a sine-wave curve and connected by a dashed SVG polyline; the map scrolls vertically as more levels are added.
+- **Parallax cloud decorations**: 4 independently-timed floating cloud emoji with CSS drift animation.
+- **Current-level pulse indicator**: the next unlocked, not-yet-starred level gets a distinct pulsing highlight.
+- **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
+- **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
+- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 9 & 10).
+- **Persistent Progress**: Progress, best scores, and star counts are automatically saved in local browser storage (`localStorage`).
+- **Jelly Tiles (Single & Double Layer)** (`src/data/levels.js`, `src/components/GameBoard.jsx`): Translucent background tiles underneath candies, tracked independently of the candy grid so they stay attached to a board position through gravity. Cleared by matching/detonating a candy on top of them — 1 hit for single-layer, 2 for double-layer.
+- **Jelly Clearing Mode**: A level objective type (`objective.type === 'jelly'`) that requires clearing all jelly within the move limit, distinct from score-target levels. Used by "Jelly Jungle" (ring layout) and "Chocolate Chasm" (block layout).
+
+---
+
+## 🔨 4. In-Game Boosters (`src/components/BoosterBar.jsx`)
+
+- **Lollipop Hammer**: Allows players to select and instantly smash any single candy on the board (plain clear, no chain detonation even if it hits a special).
+- **Shuffle Board**: Manually reshuffles all candies on the board when stuck.
+- **Color Bomb Generator**: Instantly spawns a free Color Bomb at a selected tile location.
+
+---
+
+## 🔊 5. Audio & Haptics Engine (`src/utils/sound.js`, `src/utils/haptics.js`)
+
+- **Web Audio API Synthesizer**: Zero external audio downloads required; synthesizes real-time sound effects, unlocked on the first user tap (mobile autoplay policy compliance):
+  - Match pop sound, with an ascending-pitch combo sound on multi-cascade streaks.
+  - Laser zap sound for Striped Candy detonations.
+  - Heavy sub-bass boom for Wrapped Candy explosions.
+  - Electric zap/chime for Color Bomb and Jelly Fish detonations.
+  - Mega blast sound for any special+special combo swap.
+- **Mobile Haptic Feedback**: Triggers native device vibration (`navigator.vibrate`) on matches, special explosions, and big combo streaks.
+
+---
+
+## 📱 6. Mobile & Android Studio PWA Integration
+
+- **Responsive Mobile Layout**: Portrait viewport with `env(safe-area-inset-*)` padding for notched devices.
+- **Web App Manifest + Service Worker**: Full PWA configuration via `vite-plugin-pwa` (Workbox-generated service worker, offline precaching) enabling "Add to Home Screen" standalone app mode.
+- **Capacitor Android Integration (`capacitor.config.json`, `android/`)**: Native Android project generated and synced; ready to build into a `.apk` in Android Studio via `npx cap open android`.
+
+---
+
+## ✅ 7. Automated Test Coverage (`src/game/board.test.js`)
+
+- 30 Vitest unit tests covering match detection (all shapes), cascade/multiplier resolution, deadlock detection & reshuffle, all combo pairings (including the no-explicit-shape fallback), boosters, and Jelly Fish targeting.
+
+---
+
+## 🎨 8. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`)
+
+- **HTML5 Canvas Particle Burst System**:
+  - Explosive candy fragment particle bursts when tiles match.
+  - Glowing laser beam energy blasts (using `screen` blend modes) for Striped Candy clears.
+  - Branching, jittering lightning arc effects connecting Color Bombs to matching candies.
+  - Dual-layered shockwave ring expansions for Wrapped Candy detonations.
+- **Physics-Based Animations**:
+  - Smooth spring physics for candies spawning, hovering, and tapping using **Framer Motion**.
+  - Exaggerated squash-and-stretch entrance animations for a more playful, juicy feel.
+- **Premium 3D Candy Art**:
+  - Glossy SVG candy assets with multi-layered gradients (inner top highlight, inner bottom shadow, and drop shadow).
+  - Sri Lankan candy motifs (Kalu Dodol, Kavum, Kokis) built directly into the vector designs.
+
+---
+
+## 🇱🇰 9. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
+
+- **Sinhala Voice Announcer Catchphrases**: energetic Sinhala voice clips for combo streaks and game outcomes:
+  - *"නියමයි!"* (Awesome!), *"පට්ට!"* (Fantastic!), *"එළකිරි!"* (Top Class!), *"වැඩක් නෑ කතා කරලා!"* (Next Level!).
+  - Win/Loss outcomes: *"දින්නා!"* (You Won!), *"අයියෝ! පරාදයි!"* (Oh no! You lost!).
+- **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/*.mp3`, generated offline via `edge-tts`, see `scripts/generate_edge_voices.js`) played through the native `Audio` element for zero-latency, offline-capable, cross-browser-consistent playback.
+- **Male / Female voice toggle**: persisted to `localStorage` (`announcerVoice`), switchable from the in-game Settings menu (see section 3).
+- **Localized UI Text**: Game UI modals, alerts, and announcer pop-ups fully translated to Sinhala for a consistent thematic experience.
+
+---
+
+## 🎵 10. Procedural Background Music Engine (`src/utils/sound.js`)
+
+- Fully synthesized (no audio files) via Web Audio API oscillators, scheduled with a lookahead loop for drift-free timing.
+- **3 selectable rhythmic styles**, switchable live from the Settings menu and persisted to `localStorage` (`bgmStyle`):
+  - **Baila**: 140 BPM, sawtooth bassline.
+  - **Papare**: 160 BPM, square-wave "trumpet" melody with fast snare rolls.
+  - **Kandyan (Getabera)**: 120 BPM, low toms + high-pitched strikes.
+- **Mute toggle**: persisted to `localStorage` (`bgmMuted`), accessible from both the Saga Map header button and the Settings menu; BGM auto-starts on the first unlocked user gesture if not muted.
