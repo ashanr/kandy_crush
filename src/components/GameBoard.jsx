@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   generateBoard,
   createEmptyJellyGrid,
@@ -21,17 +21,21 @@ import {
   playElectricZap,
   playMegaBlast,
   unlockAudio,
-  playSinhalaAnnouncer,
+  playAnnouncerVoice,
   playSinhalaWin,
   playSinhalaLose,
 } from '../utils/sound.js';
+import { getAnnouncement } from '../utils/announcer.js';
 import { haptics } from '../utils/haptics.js';
 import AnnouncerOverlay from './AnnouncerOverlay.jsx';
 import BoosterBar from './BoosterBar.jsx';
 
 import CandySprite from './CandySprite.jsx';
+import CandyShatter from './CandyShatter.jsx';
 import ParticleCanvas from './ParticleCanvas.jsx';
+import DynamicBackground from './DynamicBackground.jsx';
 import { globalParticleEngine } from '../utils/particles.js';
+import SugarCrush from './SugarCrush.jsx';
 
 const ROWS = 8;
 const COLS = 8;
@@ -62,6 +66,10 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const gridRef = useRef(null);
   const dragStart = useRef(null);
   const outcomeSignaled = useRef(false);
+  const prevBoardRef = useRef(null);
+  const [shatters, setShatters] = useState([]);
+  const [sugarCrushActive, setSugarCrushActive] = useState(false);
+  const pendingWinScore = useRef(null);
 
   useEffect(() => {
     const initialJelly = level.jellyLayout ? level.jellyLayout.map((row) => row.slice()) : createEmptyJellyGrid(ROWS, COLS);
@@ -77,6 +85,14 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
   const jellyRemaining = jellyGrid.flat().reduce((sum, v) => sum + v, 0);
 
+  const handleSugarCrushDone = useCallback(() => {
+    setSugarCrushActive(false);
+    if (pendingWinScore.current !== null) {
+      onWin?.(pendingWinScore.current);
+      pendingWinScore.current = null;
+    }
+  }, [onWin]);
+
   const checkOutcome = useCallback(
     (nextScore, nextMoves, nextJelly) => {
       if (outcomeSignaled.current) return;
@@ -84,13 +100,15 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       if (level.objective.type === 'score' && nextScore >= level.objective.target) {
         outcomeSignaled.current = true;
         playSinhalaWin();
-        onWin?.(nextScore);
+        pendingWinScore.current = nextScore;
+        setSugarCrushActive(true);
         return;
       }
       if (level.objective.type === 'jelly' && jellyLeft === 0) {
         outcomeSignaled.current = true;
         playSinhalaWin();
-        onWin?.(nextScore);
+        pendingWinScore.current = nextScore;
+        setSugarCrushActive(true);
         return;
       }
       if (nextMoves <= 0) {
@@ -159,28 +177,50 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       triggerFX(posA, posB, result, specialTypes);
 
+      // --- Candy Shatter: diff old board vs new board ---
+      if (board) {
+        const oldIds = new Map();
+        board.forEach((row, r) => row.forEach((cell, c) => {
+          oldIds.set(cell.id, { r, c, color: cell.color });
+        }));
+        const newIds = new Set();
+        result.board.forEach((row) => row.forEach((cell) => {
+          newIds.add(cell.id);
+        }));
+        const destroyed = [];
+        for (const [id, info] of oldIds) {
+          if (!newIds.has(id)) {
+            destroyed.push({ id: `shatter-${id}-${Date.now()}`, color: info.color, col: info.c, row: info.r });
+          }
+        }
+        if (destroyed.length > 0) {
+          setShatters((prev) => [...prev, ...destroyed]);
+        }
+      }
+
+      // Banner text and the spoken line come from one shared mapping so they
+      // can never disagree (see src/utils/announcer.js).
+      const { banner, voiceKey } = getAnnouncement({
+        specialCount: specialTypes.length,
+        cascadeCount: result.cascadeCount,
+      });
+      setMessage(banner);
+      playAnnouncerVoice(voiceKey);
+
       const comboSound = pickComboSound(specialTypes);
       if (comboSound) {
         window.setTimeout(() => {
           comboSound();
           haptics.combo();
         }, 120);
-        const comboMsg = specialTypes.length === 2 ? 'වැඩක් නෑ කතා කරලා!' : 'පට්ට!';
-        setMessage(comboMsg);
-        playSinhalaAnnouncer(specialTypes.length === 2 ? 5 : 3);
       } else if (result.cascadeCount > 1) {
         window.setTimeout(() => {
           playCombo(result.cascadeCount);
           haptics.combo();
         }, 150);
-        const comboMsg = result.cascadeCount >= 4 ? 'වැඩක් නෑ කතා කරලා!' : result.cascadeCount === 3 ? 'එළකිරි!' : 'පට්ට!';
-        setMessage(comboMsg);
-        playSinhalaAnnouncer(result.cascadeCount);
       } else {
         playPop();
         haptics.match();
-        setMessage('නියමයි!');
-        playSinhalaAnnouncer(2);
       }
 
       const { board: playableBoard, reshuffled } = ensurePlayable(result.board);
@@ -291,6 +331,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
   return (
     <div className="game-board-screen">
+      <DynamicBackground levelId={level.id} />
       <div className="game-hud">
         <button type="button" className="hud-btn" onClick={onExit}>Exit</button>
         <div className="hud-stat">
@@ -307,30 +348,46 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
       >
         <ParticleCanvas width={360} height={360} />
-        {board.map((row, r) =>
-          row.map((cell, c) => (
-            <div
-              key={cell.id}
-              className={`candy-cell ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''}`}
-              onPointerDown={(e) => handlePointerDown(r, c, e)}
-              onPointerUp={handlePointerUp}
-            >
-              {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
-                <motion.div
-                  layout
-                  layoutId={`candy-${cell.id}`}
-                  className="candy-wrapper"
-                  initial={{ scale: 0.5, opacity: 0, rotate: -15 }}
-                  animate={{ scale: [1.2, 0.85, 1.05, 1], opacity: 1, rotate: 0 }}
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  whileTap={{ scale: 0.9, rotate: -5 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                >
-                  <CandySprite color={cell.color} special={cell.special} size={42} />
-                </motion.div>
-            </div>
-          )),
-        )}
+        <AnimatePresence mode="popLayout">
+          {board.map((row, r) =>
+            row.map((cell, c) => (
+              <div
+                key={cell.id}
+                className={`candy-cell ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''}`}
+                onPointerDown={(e) => handlePointerDown(r, c, e)}
+                onPointerUp={handlePointerUp}
+              >
+                {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
+                  <motion.div
+                    layout
+                    layoutId={`candy-${cell.id}`}
+                    className="candy-wrapper"
+                    initial={{ scale: 0.5, opacity: 0, rotate: -15 }}
+                    animate={{ scale: [1.2, 0.85, 1.05, 1], opacity: 1, rotate: 0 }}
+                    exit={{ scale: 1.6, opacity: 0, filter: 'brightness(2) blur(2px)' }}
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    whileTap={{ scale: 0.9, rotate: -5 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  >
+                    <CandySprite color={cell.color} special={cell.special} size={42} />
+                  </motion.div>
+              </div>
+            )),
+          )}
+        </AnimatePresence>
+
+        {/* Shatter Effects Layer */}
+        {shatters.map((s) => (
+          <CandyShatter
+            key={s.id}
+            color={s.color}
+            gridX={s.col}
+            gridY={s.row}
+            cellW={gridRef.current ? gridRef.current.getBoundingClientRect().width / COLS : 45}
+            cellH={gridRef.current ? gridRef.current.getBoundingClientRect().height / ROWS : 45}
+            onComplete={() => setShatters((prev) => prev.filter((x) => x.id !== s.id))}
+          />
+        ))}
       </div>
 
       <BoosterBar
@@ -340,6 +397,11 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       />
 
       <AnnouncerOverlay message={message} />
+
+      {/* Sugar Crush Win Celebration */}
+      {sugarCrushActive && (
+        <SugarCrush onComplete={handleSugarCrushDone} />
+      )}
     </div>
   );
 }

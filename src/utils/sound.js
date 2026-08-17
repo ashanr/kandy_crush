@@ -9,6 +9,22 @@ function getContext() {
   return audioCtx;
 }
 
+// Master bus for background music only. Every BGM generator routes through
+// this instead of connecting straight to ctx.destination, so the music can be
+// ducked at a single point while an announcer voice is speaking. SFX
+// deliberately bypass it — they're short and should stay at full level.
+let bgmGain = null;
+
+function getBgmGain() {
+  if (!bgmGain) {
+    const ctx = getContext();
+    bgmGain = ctx.createGain();
+    bgmGain.gain.value = 1;
+    bgmGain.connect(ctx.destination);
+  }
+  return bgmGain;
+}
+
 // Mobile Chrome/Safari suspend the AudioContext until it's resumed inside a
 // user-gesture handler — call this from the first tap/touch, or all
 // subsequent playTone() calls will silently produce no sound.
@@ -17,7 +33,12 @@ export function unlockAudio() {
   const ctx = getContext();
   if (ctx.state === 'suspended') ctx.resume();
   unlocked = true;
-  
+
+  // Decoding 36 clips is deferred until here rather than done at module load —
+  // constructing/fetching them all up front is a real cost on mobile, and
+  // nothing can be played before unlock anyway.
+  loadVoiceBuffers();
+
   if (!isMuted && !bgmInterval) {
     startBGM();
   }
@@ -70,7 +91,7 @@ function playKick(time) {
   osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.3);
   gain.gain.setValueAtTime(0.5, time);
   gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-  osc.connect(gain).connect(ctx.destination);
+  osc.connect(gain).connect(getBgmGain());
   osc.start(time);
   osc.stop(time + 0.3);
 }
@@ -83,7 +104,7 @@ function playSnare(time, pitch = 250, vol = 0.2) {
   osc.frequency.setValueAtTime(pitch, time);
   gain.gain.setValueAtTime(vol, time);
   gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-  osc.connect(gain).connect(ctx.destination);
+  osc.connect(gain).connect(getBgmGain());
   osc.start(time);
   osc.stop(time + 0.2);
 }
@@ -96,7 +117,7 @@ function playSynth(time, freq, type = 'sawtooth', duration, vol = 0.08) {
   osc.frequency.value = freq;
   gain.gain.setValueAtTime(vol, time);
   gain.gain.linearRampToValueAtTime(0.01, time + duration);
-  osc.connect(gain).connect(ctx.destination);
+  osc.connect(gain).connect(getBgmGain());
   osc.start(time);
   osc.stop(time + duration);
 }
@@ -218,25 +239,106 @@ export function playMegaBlast() {
   playTone({ frequency: 150, duration: 0.4, type: 'square', glideTo: 900, volume: 0.22 });
 }
 
-// Pre-loaded Sinhala Voice Audio Objects for zero latency
-const voices = {
-  male: {
-    niyamai: new Audio('/voices/male/niyamai.mp3'),
-    patta: new Audio('/voices/male/patta.mp3'),
-    elakiri: new Audio('/voices/male/elakiri.mp3'),
-    wedak_na: new Audio('/voices/male/wedak_na.mp3'),
-    win: new Audio('/voices/male/win.mp3'),
-    lose: new Audio('/voices/male/lose.mp3'),
-  },
-  female: {
-    niyamai: new Audio('/voices/female/niyamai.mp3'),
-    patta: new Audio('/voices/female/patta.mp3'),
-    elakiri: new Audio('/voices/female/elakiri.mp3'),
-    wedak_na: new Audio('/voices/female/wedak_na.mp3'),
-    win: new Audio('/voices/female/win.mp3'),
-    lose: new Audio('/voices/female/lose.mp3'),
+// ---------------------------------------------------------------------------
+// Sinhala voice announcer
+//
+// Clips are decoded into AudioBuffers rather than played as <audio> elements.
+// HTMLAudioElement lives outside the Web Audio graph, and bridging it via
+// createMediaElementSource() can only be done once per element (it throws
+// afterwards) and mutes the element if you forget to reconnect it onward —
+// neither of which plays well with per-clip reverb, ducking, or replaying a
+// clip while it's already sounding.
+// ---------------------------------------------------------------------------
+
+const VOICE_KEYS = ['niyamai', 'patta', 'elakiri', 'wedak_na', 'win', 'lose'];
+const VARIANTS_PER_KEY = 3;
+
+// Big moments get reverb so they feel distinct from an ordinary match.
+const REVERB_KEYS = new Set(['elakiri', 'wedak_na', 'win']);
+
+// { male: { niyamai: [AudioBuffer|null, ...] }, female: {...} }
+const voiceBuffers = { male: {}, female: {} };
+let voiceLoadStarted = false;
+
+async function decodeClip(ctx, url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${url}`);
+  const raw = await res.arrayBuffer();
+  return ctx.decodeAudioData(raw);
+}
+
+// Loads <key>_<n>.mp3, falling back to the legacy un-suffixed <key>.mp3 so a
+// partial/failed regeneration can never leave the announcer completely mute.
+async function loadOneClip(ctx, gender, key, variant) {
+  try {
+    return await decodeClip(ctx, `/voices/${gender}/${key}_${variant}.mp3`);
+  } catch {
+    try {
+      return await decodeClip(ctx, `/voices/${gender}/${key}.mp3`);
+    } catch {
+      return null;
+    }
   }
-};
+}
+
+function loadVoiceBuffers() {
+  if (voiceLoadStarted) return;
+  voiceLoadStarted = true;
+  const ctx = getContext();
+
+  ['male', 'female'].forEach((gender) => {
+    VOICE_KEYS.forEach((key) => {
+      voiceBuffers[gender][key] = new Array(VARIANTS_PER_KEY).fill(null);
+      for (let v = 1; v <= VARIANTS_PER_KEY; v += 1) {
+        loadOneClip(ctx, gender, key, v).then((buf) => {
+          voiceBuffers[gender][key][v - 1] = buf;
+        });
+      }
+    });
+  });
+}
+
+// Short exponential-decay noise burst used as a reverb impulse response —
+// generated at runtime so there's no external IR file to ship or precache.
+let impulseResponse = null;
+
+function getImpulseResponse(ctx) {
+  if (!impulseResponse) {
+    const length = Math.max(1, Math.floor(ctx.sampleRate * 1.1));
+    impulseResponse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch += 1) {
+      const data = impulseResponse.getChannelData(ch);
+      for (let i = 0; i < length; i += 1) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3;
+      }
+    }
+  }
+  return impulseResponse;
+}
+
+// --- BGM ducking -----------------------------------------------------------
+// Refcounted so two overlapping voice clips don't let the first one to finish
+// restore the music while the second is still speaking.
+const DUCKED_LEVEL = 0.4;
+let activeVoices = 0;
+
+function duckBGM() {
+  activeVoices += 1;
+  if (activeVoices === 1 && bgmGain) {
+    const ctx = getContext();
+    bgmGain.gain.cancelScheduledValues(ctx.currentTime);
+    bgmGain.gain.setTargetAtTime(DUCKED_LEVEL, ctx.currentTime, 0.05);
+  }
+}
+
+function unduckBGM() {
+  activeVoices = Math.max(0, activeVoices - 1);
+  if (activeVoices === 0 && bgmGain) {
+    const ctx = getContext();
+    bgmGain.gain.cancelScheduledValues(ctx.currentTime);
+    bgmGain.gain.setTargetAtTime(1, ctx.currentTime, 0.18);
+  }
+}
 
 // Default to male voice
 let currentVoiceGender = localStorage.getItem('announcerVoice') || 'male';
@@ -253,27 +355,61 @@ export function getAnnouncerVoice() {
 }
 
 export function speakSinhalaFile(key) {
+  if (!unlocked) return;
   try {
-    const audio = voices[currentVoiceGender][key];
-    if (audio) {
-      audio.currentTime = 0; // Rewind to start
-      audio.play().catch(() => {});
+    const clips = (voiceBuffers[currentVoiceGender] || {})[key];
+    if (!clips) return;
+    // Only pick among variants that actually decoded.
+    const available = clips.filter(Boolean);
+    if (available.length === 0) return;
+
+    const buffer = available[Math.floor(Math.random() * available.length)];
+    const ctx = getContext();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const out = ctx.createGain();
+    out.gain.value = 1;
+    out.connect(ctx.destination);
+
+    if (REVERB_KEYS.has(key)) {
+      // Dry path keeps the line intelligible; wet path adds the stadium tail.
+      const dry = ctx.createGain();
+      dry.gain.value = 0.85;
+      source.connect(dry).connect(out);
+
+      const convolver = ctx.createConvolver();
+      convolver.buffer = getImpulseResponse(ctx);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.35;
+      source.connect(convolver).connect(wet).connect(out);
+    } else {
+      source.connect(out);
     }
-  } catch (e) {
-    // Silent fail if blocked by browser policy
+
+    duckBGM();
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      unduckBGM();
+    };
+    source.onended = restore;
+    // Belt-and-braces: if onended never fires (tab backgrounded mid-clip, some
+    // mobile browsers), don't leave the music permanently ducked.
+    window.setTimeout(restore, Math.ceil(buffer.duration * 1000) + 1500);
+
+    source.start();
+  } catch {
+    // Never let an audio failure interrupt gameplay.
   }
 }
 
-export function playSinhalaAnnouncer(comboCount) {
-  if (comboCount === 2) {
-    speakSinhalaFile('niyamai');
-  } else if (comboCount === 3) {
-    speakSinhalaFile('patta');
-  } else if (comboCount === 4) {
-    speakSinhalaFile('elakiri');
-  } else if (comboCount >= 5) {
-    speakSinhalaFile('wedak_na');
-  }
+// Plays a specific announcer line. Callers pass a voice key rather than a
+// combo number so the spoken line can't drift out of sync with the on-screen
+// banner — see src/utils/announcer.js for the single source of that mapping.
+export function playAnnouncerVoice(voiceKey) {
+  if (VOICE_KEYS.includes(voiceKey)) speakSinhalaFile(voiceKey);
 }
 
 export function playSinhalaWin() {

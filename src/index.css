@@ -164,11 +164,8 @@ button {
     calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
   position: relative;
   touch-action: none;
-  /* Animated gradient background for depth */
-  background:
-    radial-gradient(ellipse at 20% 80%, rgba(255, 93, 162, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at top, var(--bg-mid), var(--bg-deep) 70%);
+  /* Background now rendered by DynamicBackground canvas */
+  background: transparent;
 }
 
 .game-hud {
@@ -300,6 +297,79 @@ button {
   filter: drop-shadow(0px 3px 5px rgba(0, 0, 0, 0.35));
   cursor: pointer;
   touch-action: none;
+}
+
+/* --- Idle Candy Glint & Glow --- */
+
+.candy-sprite-container {
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+/* Diagonal white glint sweep across normal candies */
+.candy-glint-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 5;
+}
+
+.candy-glint-overlay::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -80%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.6) 46%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0.6) 54%,
+    transparent 70%
+  );
+  transform: rotate(25deg);
+  animation: glintSweep 8s ease-in-out var(--glint-delay, 3s) infinite;
+  opacity: 0;
+}
+
+@keyframes glintSweep {
+  0%   { left: -80%; opacity: 0; }
+  3%   { opacity: 1; }
+  15%  { left: 130%; opacity: 1; }
+  18%  { opacity: 0; }
+  100% { opacity: 0; left: 130%; }
+}
+
+/* Pulsing radiant glow ring for special candies */
+.candy-glow-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(circle, var(--glow-color) 0%, transparent 70%);
+  animation: glowPulse 2s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.65;
+  }
+}
+
+/* Extra drop-shadow on the special candy wrapper itself */
+.candy-special-glow {
+  filter: drop-shadow(0 0 8px var(--glow-color));
 }
 
 .candy {
@@ -458,6 +528,69 @@ button {
   margin-top: 15vh;
 }
 
+/* ---------------- Sugar Crush Finale ---------------- */
+
+.sugar-crush-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sugar-crush-overlay.screen-shake {
+  animation: screenShake 0.6s ease-out;
+}
+
+@keyframes screenShake {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  10%  { transform: translate(-6px, 3px) rotate(-0.5deg); }
+  20%  { transform: translate(5px, -4px) rotate(0.5deg); }
+  30%  { transform: translate(-4px, 2px) rotate(-0.3deg); }
+  40%  { transform: translate(3px, -3px) rotate(0.3deg); }
+  50%  { transform: translate(-2px, 4px) rotate(-0.2deg); }
+  60%  { transform: translate(2px, -2px) rotate(0.2deg); }
+  70%  { transform: translate(-1px, 1px) rotate(-0.1deg); }
+  80%  { transform: translate(1px, -1px) rotate(0.1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.sugar-crush-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  z-index: 55;
+  line-height: 1;
+}
+
+.sugar-line-1 {
+  font-size: 4.5rem;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #ffffff;
+  text-shadow:
+    0 0 20px rgba(255, 93, 162, 0.8),
+    0 0 40px rgba(255, 93, 162, 0.5),
+    0 4px 0 rgba(0, 0, 0, 0.3),
+    0 6px 12px rgba(0, 0, 0, 0.4);
+  -webkit-text-stroke: 2px rgba(255, 93, 162, 0.6);
+}
+
+.sugar-line-2 {
+  font-size: 5.5rem;
+  font-weight: 900;
+  letter-spacing: 8px;
+  background: linear-gradient(180deg, #ffd93d 0%, #ff9f43 50%, #ff5da2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.3)) drop-shadow(0 0 30px rgba(255, 217, 61, 0.6));
+}
+
 /* ---------------- Result Modal ---------------- */
 
 .result-modal {
@@ -496,15 +629,6 @@ button {
 }
 
 /* ---------------- Settings ---------------- */
-
-.saga-header {
-  width: 100%;
-  max-width: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-}
 
 .settings-btn {
   background: var(--card-bg);
@@ -565,4 +689,41 @@ button {
   width: 100%;
   background: rgba(255,255,255,0.1) !important;
   border: 1px solid var(--card-border) !important;
+}
+
+/* ---------------- Dynamic Background Floaters ---------------- */
+
+.theme-floaters {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.theme-floater {
+  position: absolute;
+  left: var(--float-x, 50%);
+  bottom: -40px;
+  font-size: var(--float-size, 2rem);
+  opacity: 0.12;
+  animation: floatUp var(--float-duration, 20s) linear var(--float-delay, 0s) infinite;
+  filter: blur(1px);
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.12;
+  }
+  90% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: translateY(-110vh) translateX(30px) rotate(180deg);
+    opacity: 0;
+  }
 }

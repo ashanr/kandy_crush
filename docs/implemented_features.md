@@ -41,11 +41,12 @@ This document provides a comprehensive overview of all features currently built 
 ## 🗺️ 3. Saga World Map & Progress (`src/components/SagaMap.jsx`, `src/App.jsx`)
 
 - **Animated winding path**: level nodes are positioned along a sine-wave curve and connected by a dashed SVG polyline; the map scrolls vertically as more levels are added.
+- **Auto-scroll to current level**: on every visit to the home screen, the map automatically scrolls to center the player's current (next unlocked, not-yet-starred) level, instead of always opening at level 1.
 - **Parallax cloud decorations**: 4 independently-timed floating cloud emoji with CSS drift animation.
 - **Current-level pulse indicator**: the next unlocked, not-yet-starred level gets a distinct pulsing highlight.
 - **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
 - **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
-- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 9 & 10).
+- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 10 & 11).
 - **Persistent Progress**: Progress, best scores, and star counts are automatically saved in local browser storage (`localStorage`).
 - **Jelly Tiles (Single & Double Layer)** (`src/data/levels.js`, `src/components/GameBoard.jsx`): Translucent background tiles underneath candies, tracked independently of the candy grid so they stay attached to a board position through gravity. Cleared by matching/detonating a candy on top of them — 1 hit for single-layer, 2 for double-layer.
 - **Jelly Clearing Mode**: A level objective type (`objective.type === 'jelly'`) that requires clearing all jelly within the move limit, distinct from score-target levels. Used by "Jelly Jungle" (ring layout) and "Chocolate Chasm" (block layout).
@@ -86,34 +87,47 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🎨 8. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`)
+## 🎨 8. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`, `src/components/CandyShatter.jsx`)
 
 - **HTML5 Canvas Particle Burst System**:
   - Explosive candy fragment particle bursts when tiles match.
   - Glowing laser beam energy blasts (using `screen` blend modes) for Striped Candy clears.
   - Branching, jittering lightning arc effects connecting Color Bombs to matching candies.
   - Dual-layered shockwave ring expansions for Wrapped Candy detonations.
+- **Per-Candy Shatter Effect** (`CandyShatter.jsx`): after every move, `GameBoard.jsx` diffs the old board against the new one by candy `id` to find exactly which candies were destroyed, then spawns a shatter burst (central flash + 6 flying, randomly-rotated colored shards) at each one's last known grid position — independent of and layered on top of the general particle burst system above.
 - **Physics-Based Animations**:
   - Smooth spring physics for candies spawning, hovering, and tapping using **Framer Motion**.
   - Exaggerated squash-and-stretch entrance animations for a more playful, juicy feel.
+  - Candies now animate a bright flash-and-blur **exit** transition (`AnimatePresence`) when cleared, rather than being replaced instantly with no transition.
 - **Premium 3D Candy Art**:
   - Glossy SVG candy assets with multi-layered gradients (inner top highlight, inner bottom shadow, and drop shadow).
   - Sri Lankan candy motifs (Kalu Dodol, Kavum, Kokis) built directly into the vector designs.
 
 ---
 
-## 🇱🇰 9. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
+## 🌄 9. Per-Level Dynamic Background (`src/components/DynamicBackground.jsx`)
 
-- **Sinhala Voice Announcer Catchphrases**: energetic Sinhala voice clips for combo streaks and game outcomes:
-  - *"නියමයි!"* (Awesome!), *"පට්ට!"* (Fantastic!), *"එළකිරි!"* (Top Class!), *"වැඩක් නෑ කතා කරලා!"* (Next Level!).
-  - Win/Loss outcomes: *"දින්නා!"* (You Won!), *"අයියෝ! පරාදයි!"* (Oh no! You lost!).
-- **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/*.mp3`, generated offline via `edge-tts`, see `scripts/generate_edge_voices.js`) played through the native `Audio` element for zero-latency, offline-capable, cross-browser-consistent playback.
+- Each of the 5 levels has its own themed backdrop, rendered on a full-screen `<canvas>` sitting behind the board (`z-index: -2`): a 3-stop linear gradient, two `screen`-blend accent glow orbs, and ~40 slowly-drifting ambient particles, all colored per level (e.g. pink/magenta for "Sugar Patch," teal/blue for "Jelly Jungle," brown/purple for "Chocolate Chasm").
+- A separate CSS-animated layer floats level-themed emoji (🍬🍭✨ for level 1, 🫧💧🪼 for level 3, etc.) slowly upward in the background.
+- Falls back to the level 1 theme for any level ID without a defined theme (currently a non-issue since all 5 levels have one).
+
+---
+
+## 🇱🇰 10. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
+
+- **Colloquial Sinhala catchphrases with 3 random variants each**: 36 clips total (3 variants × 6 triggers × 2 genders), so the announcer doesn't repeat itself. Phrasing is deliberately colloquial rather than dictionary Sinhala — e.g. *"නියමයි මචං!"* / *"හොඳයි හොඳයි!"* / *"සුපිරි!"* for a plain match, *"අම්මෝ! වැඩක් නෑ කතා කරලා!"* / *"බලාගෙන! සුපිරිම සුපිරි!"* / *"මචං මේක නම් ලොකු වැඩක්!"* for the biggest combos, plus win/lose sets.
+- **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/<key>_<n>.mp3`, generated by `scripts/generate_all_voices.py` via `edge-tts`, run with `npm run voices`).
+- **AudioBuffer playback pipeline**: clips are `fetch`ed and `decodeAudioData`'d into `AudioBuffer`s (lazily, on first audio unlock) and played via `AudioBufferSourceNode` rather than `<audio>` elements. This is what makes per-clip reverb, BGM ducking, and overlapping replay possible — `HTMLAudioElement` sits outside the Web Audio graph and can only be bridged once per element.
+- **Reverb on big moments**: `elakiri`, `wedak_na`, and `win` route through a `ConvolverNode` fed by a procedurally-generated impulse response (no external IR file to ship), so large combos sound distinctly bigger than an ordinary match.
+- **Offline-safe**: the voice clips are included in the service-worker precache via an explicit `workbox.globPatterns` override in `vite.config.js` — the default patterns omit `mp3`, which previously left the clips uncached and the offline guarantee unmet.
+- **Graceful degradation**: a missing or undecodable variant falls back to the legacy un-suffixed `<key>.mp3`, and failing that is skipped silently — audio problems never interrupt gameplay.
 - **Male / Female voice toggle**: persisted to `localStorage` (`announcerVoice`), switchable from the in-game Settings menu (see section 3).
+- **Banner/voice sync**: on-screen banner text and the spoken line both come from a single mapping in `src/utils/announcer.js`, so they cannot drift apart (they previously did — a 3-step cascade showed *එළකිරි!* while the audio said *පට්ට!*). Covered by unit tests.
 - **Localized UI Text**: Game UI modals, alerts, and announcer pop-ups fully translated to Sinhala for a consistent thematic experience.
 
 ---
 
-## 🎵 10. Procedural Background Music Engine (`src/utils/sound.js`)
+## 🎵 11. Procedural Background Music Engine (`src/utils/sound.js`)
 
 - Fully synthesized (no audio files) via Web Audio API oscillators, scheduled with a lookahead loop for drift-free timing.
 - **3 selectable rhythmic styles**, switchable live from the Settings menu and persisted to `localStorage` (`bgmStyle`):
@@ -121,3 +135,4 @@ This document provides a comprehensive overview of all features currently built 
   - **Papare**: 160 BPM, square-wave "trumpet" melody with fast snare rolls.
   - **Kandyan (Getabera)**: 120 BPM, low toms + high-pitched strikes.
 - **Mute toggle**: persisted to `localStorage` (`bgmMuted`), accessible from both the Saga Map header button and the Settings menu; BGM auto-starts on the first unlocked user gesture if not muted.
+- **Master bus + voice ducking**: all three BGM generators (kick/snare/synth) route through a shared `bgmGain` node instead of connecting straight to `ctx.destination`. While an announcer clip plays, that bus smoothly ducks to 40% and restores afterwards, so the voice always cuts through the Baila/Papare drums. Ducking is refcounted, so overlapping clips can't un-duck the music early, with a timeout backstop in case `onended` never fires (e.g. tab backgrounded mid-clip).

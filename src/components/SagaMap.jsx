@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Star, Settings } from 'lucide-react';
 import { LEVELS } from '../data/levels.js';
@@ -9,6 +9,46 @@ export default function SagaMap({ progress, onSelectLevel }) {
   const [voice, setVoice] = useState(getAnnouncerVoice());
   const [isMuted, setIsMuted] = useState(getMuteState());
   const [bgmStyle, setBgmStyleState] = useState(getBGMStyle());
+  const scrollAreaRef = useRef(null);
+
+  // Precompute each level's unlocked/star/position state once, shared by
+  // both the render loop and the auto-scroll effect below (previously this
+  // logic was duplicated inline in the JSX map).
+  const levelStates = useMemo(
+    () => LEVELS.map((level, idx) => {
+      const unlocked = idx === 0 || (progress[LEVELS[idx - 1].id]?.stars ?? 0) > 0;
+      const stars = progress[level.id]?.stars ?? 0;
+      const bestScore = progress[level.id]?.bestScore ?? 0;
+      return {
+        level,
+        idx,
+        unlocked,
+        stars,
+        bestScore,
+        isCurrent: unlocked && stars === 0,
+        leftPos: 50 + Math.sin(idx * 0.9) * 30,
+        topPos: 50 + idx * 110,
+      };
+    }),
+    [progress],
+  );
+
+  // Jump straight to the player's current level on open, instead of always
+  // landing on level 1 — SagaMap fully remounts each time the player
+  // returns from a level, so a mount-only effect is exactly "every time
+  // they land back on the home screen," without yanking the scroll
+  // position around on every progress update while already here.
+  useEffect(() => {
+    const container = scrollAreaRef.current;
+    const target = levelStates.find((s) => s.isCurrent) ?? levelStates[levelStates.length - 1];
+    if (!container || !target) return undefined;
+    const timer = window.setTimeout(() => {
+      const scrollTop = Math.max(0, target.topPos - container.clientHeight / 2);
+      container.scrollTo({ top: scrollTop, behavior: 'smooth' });
+    }, 300);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleVoiceChange = (v) => {
     setVoice(v);
@@ -38,7 +78,7 @@ export default function SagaMap({ progress, onSelectLevel }) {
         </div>
       </div>
       
-      <div className="saga-scroll-area">
+      <div className="saga-scroll-area" ref={scrollAreaRef}>
         {/* Decorative Background Elements */}
         <div className="cloud cloud-1">☁️</div>
         <div className="cloud cloud-2">☁️</div>
@@ -46,33 +86,20 @@ export default function SagaMap({ progress, onSelectLevel }) {
         <div className="cloud cloud-4">☁️</div>
 
         <div className="saga-path" style={{ height: `${LEVELS.length * 110 + 100}px` }}>
-          
+
           {/* Winding SVG Path Connecting Levels */}
           <svg className="saga-path-line" width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            <polyline 
-              fill="none" 
-              stroke="rgba(255, 255, 255, 0.2)" 
-              strokeWidth="12" 
+            <polyline
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.2)"
+              strokeWidth="12"
               strokeDasharray="16 16"
               strokeLinecap="round"
-              points={LEVELS.map((_, idx) => {
-                const x = 50 + Math.sin(idx * 0.9) * 30; // 20% to 80%
-                const y = 50 + idx * 110;
-                return `${x}%, ${y}`;
-              }).join(' ')}
+              points={levelStates.map(({ leftPos, topPos }) => `${leftPos}%, ${topPos}`).join(' ')}
             />
           </svg>
 
-          {LEVELS.map((level, idx) => {
-            const unlocked = idx === 0 || (progress[LEVELS[idx - 1].id]?.stars ?? 0) > 0;
-            const stars = progress[level.id]?.stars ?? 0;
-            const bestScore = progress[level.id]?.bestScore ?? 0;
-            
-            // Calculate Winding Position
-            const leftPos = 50 + Math.sin(idx * 0.9) * 30; // sine wave
-            const topPos = 50 + idx * 110;
-            const isCurrent = unlocked && stars === 0;
-
+          {levelStates.map(({ level, idx, unlocked, stars, bestScore, isCurrent, leftPos, topPos }) => {
             return (
               <motion.button
                 key={level.id}

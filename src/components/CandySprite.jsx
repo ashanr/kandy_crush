@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { SPECIAL } from '../game/board.js';
 
 export default function CandySprite({ color, special, size = 48 }) {
@@ -6,10 +7,15 @@ export default function CandySprite({ color, special, size = 48 }) {
   const isStripedH = special === SPECIAL.STRIPED_H;
   const isStripedV = special === SPECIAL.STRIPED_V;
   const isJellyFish = special === SPECIAL.JELLY_FISH;
+  const isSpecial = isColorBomb || isWrapped || isStripedH || isStripedV || isJellyFish;
+
+  // Random staggered delay so candies don't all glint at the same time
+  const glintDelay = useMemo(() => `${(Math.random() * 6 + 2).toFixed(1)}s`, []);
+  const glowColor = isSpecial ? getGlowColor(color, special) : 'transparent';
 
   return (
     <div
-      className="candy-sprite-container"
+      className={`candy-sprite-container ${isSpecial ? 'candy-special-glow' : 'candy-has-glint'}`}
       style={{
         width: `${size}px`,
         height: `${size}px`,
@@ -17,6 +23,8 @@ export default function CandySprite({ color, special, size = 48 }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        '--glint-delay': glintDelay,
+        '--glow-color': glowColor,
       }}
     >
       {/* 1. COLOR BOMB SPECIAL CANDY */}
@@ -187,6 +195,16 @@ export default function CandySprite({ color, special, size = 48 }) {
           )}
         </svg>
       )}
+
+      {/* Diagonal Glint Sweep for normal candies */}
+      {!isSpecial && (
+        <div className="candy-glint-overlay" />
+      )}
+
+      {/* Radiant Glow Pulse for special candies */}
+      {isSpecial && (
+        <div className="candy-glow-ring" />
+      )}
     </div>
   );
 }
@@ -225,4 +243,17 @@ function getColorDark(color) {
     purple: '#9333ea',
   };
   return map[color] || '#000000';
+}
+
+function getGlowColor(color, special) {
+  if (special === SPECIAL.BOMB) return '#ffd93d';
+  const map = {
+    red: '#ff4d6d',
+    orange: '#ff9f43',
+    yellow: '#ffd93d',
+    green: '#4ade80',
+    blue: '#38bdf8',
+    purple: '#c084fc',
+  };
+  return map[color] || '#ffffff';
 }
