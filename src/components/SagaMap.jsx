@@ -2,7 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Star, Settings } from 'lucide-react';
 import { LEVELS } from '../data/levels.js';
+import { THEMES } from './DynamicBackground.jsx';
+import { isUnlocked, readEntry } from '../utils/progression.js';
 import { getAnnouncerVoice, setAnnouncerVoice, toggleMute, getMuteState, unlockAudio, getBGMStyle, setBGMStyle } from '../utils/sound.js';
+
+// Vertical distance between level nodes. Generous enough that the map has real
+// scroll travel — the zone gradient and parallax layers are imperceptible when
+// the whole path fits on one screen.
+const LEVEL_SPACING = 170;
+const PATH_TOP = 90;
+const PATH_BOTTOM_PAD = 130;
+const NODE_SIZE = 84;
+// Horizontal sway of the winding path, as a fraction of the map width.
+const SWAY = 0.28;
+
+const PATH_HEIGHT = PATH_TOP + (LEVELS.length - 1) * LEVEL_SPACING + PATH_BOTTOM_PAD;
 
 export default function SagaMap({ progress, onSelectLevel }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -10,28 +24,95 @@ export default function SagaMap({ progress, onSelectLevel }) {
   const [isMuted, setIsMuted] = useState(getMuteState());
   const [bgmStyle, setBgmStyleState] = useState(getBGMStyle());
   const scrollAreaRef = useRef(null);
+  const pathRef = useRef(null);
+  const [mapWidth, setMapWidth] = useState(0);
+  const [scrollY, setScrollY] = useState(0);
+
+  // The trail is an SVG <polyline>, whose `points` attribute accepts bare
+  // numbers only — the previous "50%, 120" form was invalid and the browser
+  // stopped parsing at the first '%', so the connecting path never drew.
+  // Measuring the map lets us emit real pixel coordinates.
+  useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return undefined;
+    const sync = () => setMapWidth(el.clientWidth);
+    sync();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', sync);
+      return () => window.removeEventListener('resize', sync);
+    }
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Parallax: track scroll position, rAF-throttled so we never do more than
+  // one state update per frame.
+  useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return undefined;
+    let frame = null;
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        setScrollY(el.scrollTop);
+        frame = null;
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, []);
 
   // Precompute each level's unlocked/star/position state once, shared by
   // both the render loop and the auto-scroll effect below (previously this
   // logic was duplicated inline in the JSX map).
   const levelStates = useMemo(
     () => LEVELS.map((level, idx) => {
-      const unlocked = idx === 0 || (progress[LEVELS[idx - 1].id]?.stars ?? 0) > 0;
-      const stars = progress[level.id]?.stars ?? 0;
-      const bestScore = progress[level.id]?.bestScore ?? 0;
+      const unlocked = isUnlocked(progress, LEVELS, idx);
+      const { stars, bestScore, completed } = readEntry(progress, level.id);
+      const swayFraction = Math.sin(idx * 0.9) * SWAY;
       return {
         level,
         idx,
         unlocked,
         stars,
         bestScore,
-        isCurrent: unlocked && stars === 0,
-        leftPos: 50 + Math.sin(idx * 0.9) * 30,
-        topPos: 50 + idx * 110,
+        // "Current" means cleared-nothing-here-yet, not zero-stars — a level
+        // beaten for 0 stars is still behind you.
+        isCurrent: unlocked && !completed,
+        // Percentage drives CSS positioning (valid there, and correct before
+        // the first measurement); pixels drive the SVG trail.
+        leftPos: 50 + swayFraction * 100,
+        leftPx: mapWidth ? mapWidth / 2 + swayFraction * mapWidth : 0,
+        topPos: PATH_TOP + idx * LEVEL_SPACING,
       };
     }),
-    [progress],
+    [progress, mapWidth],
   );
+
+  // Zone gradient built from the per-level backdrops, so each stretch of the
+  // world map previews the level it leads to.
+  const zoneGradient = useMemo(() => {
+    const stops = levelStates.map(({ level, topPos }) => {
+      const theme = THEMES[level.id] || THEMES[1];
+      const pct = ((topPos / PATH_HEIGHT) * 100).toFixed(1);
+      return `${theme.gradient[0]} ${pct}%`;
+    });
+    return `linear-gradient(180deg, ${THEMES[LEVELS[0].id]?.gradient[1] ?? '#2b0a3d'} 0%, ${stops.join(', ')}, #120425 100%)`;
+  }, [levelStates]);
+
+  // Trail is split so the stretch the player has already cleared reads as a
+  // solid ribbon while the rest stays a faint dotted outline.
+  const lastClearedIdx = useMemo(() => {
+    let last = -1;
+    levelStates.forEach((s) => { if (s.stars > 0) last = s.idx; });
+    return last;
+  }, [levelStates]);
+
+  const currentState = levelStates.find((s) => s.isCurrent) ?? null;
 
   // Jump straight to the player's current level on open, instead of always
   // landing on level 1 — SagaMap fully remounts each time the player
@@ -43,7 +124,11 @@ export default function SagaMap({ progress, onSelectLevel }) {
     const target = levelStates.find((s) => s.isCurrent) ?? levelStates[levelStates.length - 1];
     if (!container || !target) return undefined;
     const timer = window.setTimeout(() => {
-      const scrollTop = Math.max(0, target.topPos - container.clientHeight / 2);
+      // topPos is relative to .saga-path, which starts below the scroll
+      // area's top padding (added to clear the overlaid header) — offsetTop
+      // converts it into the container's scroll coordinate space.
+      const pathOffset = pathRef.current ? pathRef.current.offsetTop : 0;
+      const scrollTop = Math.max(0, pathOffset + target.topPos - container.clientHeight / 2);
       container.scrollTo({ top: scrollTop, behavior: 'smooth' });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -72,7 +157,7 @@ export default function SagaMap({ progress, onSelectLevel }) {
           <button className="settings-btn" onClick={handleToggleMute} type="button" aria-label="Toggle Music">
             {isMuted ? '🔇' : '🎵'}
           </button>
-          <button className="settings-btn" onClick={() => setShowSettings(true)} type="button">
+          <button className="settings-btn" onClick={() => setShowSettings(true)} type="button" aria-label="Open settings">
             <Settings size={28} />
           </button>
         </div>
@@ -85,19 +170,63 @@ export default function SagaMap({ progress, onSelectLevel }) {
         <div className="cloud cloud-3">☁️</div>
         <div className="cloud cloud-4">☁️</div>
 
-        <div className="saga-path" style={{ height: `${LEVELS.length * 110 + 100}px` }}>
+        <div
+          ref={pathRef}
+          className="saga-path"
+          style={{ height: `${PATH_HEIGHT}px`, background: zoneGradient }}
+        >
+          {/* Parallax depth layers — drift slower than the trail itself. */}
+          <div className="saga-parallax" style={{ top: PATH_HEIGHT * 0.18, transform: `translateY(${scrollY * 0.28}px)` }}>
+            <svg className="saga-hills saga-hills--far" viewBox="0 0 400 120" preserveAspectRatio="none" height="120">
+              <path d="M0 120 L0 70 Q 60 30 120 62 T 240 55 T 400 78 L400 120 Z" fill="#ffffff" />
+            </svg>
+          </div>
+          <div className="saga-parallax" style={{ top: PATH_HEIGHT * 0.55, transform: `translateY(${scrollY * 0.14}px)` }}>
+            <svg className="saga-hills" viewBox="0 0 400 140" preserveAspectRatio="none" height="140">
+              <path d="M0 140 L0 88 Q 80 40 170 76 T 320 62 T 400 92 L400 140 Z" fill="#ffffff" />
+            </svg>
+          </div>
 
-          {/* Winding SVG Path Connecting Levels */}
-          <svg className="saga-path-line" width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            <polyline
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.2)"
-              strokeWidth="12"
-              strokeDasharray="16 16"
-              strokeLinecap="round"
-              points={levelStates.map(({ leftPos, topPos }) => `${leftPos}%, ${topPos}`).join(' ')}
-            />
-          </svg>
+          {/* Winding candy trail. Rendered only once the map has been measured,
+              since SVG points must be numeric pixel coordinates. */}
+          {mapWidth > 0 && (
+            <svg
+              className="saga-path-line"
+              width={mapWidth}
+              height={PATH_HEIGHT}
+              style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+            >
+              <polyline
+                className="saga-trail-base"
+                points={levelStates.map(({ leftPx, topPos }) => `${leftPx},${topPos}`).join(' ')}
+              />
+              {lastClearedIdx > 0 && (
+                <polyline
+                  className="saga-trail-done"
+                  points={levelStates
+                    .slice(0, lastClearedIdx + 1)
+                    .map(({ leftPx, topPos }) => `${leftPx},${topPos}`)
+                    .join(' ')}
+                />
+              )}
+            </svg>
+          )}
+
+          {/* Player marker — sits on top of the current level node. */}
+          {currentState && (
+            <motion.div
+              className="saga-avatar"
+              style={{
+                left: `calc(${currentState.leftPos}% - 16px)`,
+                top: currentState.topPos - NODE_SIZE / 2 - 34,
+              }}
+              animate={{ y: [0, -9, 0] }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+              aria-hidden="true"
+            >
+              🍬
+            </motion.div>
+          )}
 
           {levelStates.map(({ level, idx, unlocked, stars, bestScore, isCurrent, leftPos, topPos }) => {
             return (
@@ -105,12 +234,17 @@ export default function SagaMap({ progress, onSelectLevel }) {
                 key={level.id}
                 type="button"
                 className={`level-node ${unlocked ? '' : 'locked'} ${isCurrent ? 'current-level' : ''}`}
-                style={{ 
-                  position: 'absolute', 
-                  left: `calc(${leftPos}% - 42px)`, // center the 84px node
-                  top: `${topPos - 42}px` 
+                style={{
+                  position: 'absolute',
+                  left: `calc(${leftPos}% - ${NODE_SIZE / 2}px)`,
+                  top: `${topPos - NODE_SIZE / 2}px`,
                 }}
                 disabled={!unlocked}
+                aria-label={
+                  unlocked
+                    ? `Level ${level.id}, ${level.name}${stars > 0 ? `, ${stars} of 3 stars` : ', not yet completed'}`
+                    : `Level ${level.id}, locked`
+                }
                 onClick={() => unlocked && onSelectLevel(level)}
                 whileHover={unlocked ? { scale: 1.1 } : {}}
                 whileTap={unlocked ? { scale: 0.92 } : {}}

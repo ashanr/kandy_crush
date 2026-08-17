@@ -3,8 +3,12 @@ import { useEffect, useRef } from 'react';
 /**
  * LEVEL THEMES — each level gets a unique background atmosphere.
  * Themes define gradient colors, floating element emojis, and ambient particle colors.
+ *
+ * Exported so the Saga Map can build its scrolling "zone" gradient from the
+ * same palette — each stretch of the world map then previews the backdrop of
+ * the level it leads to, and adding a level keeps the two in step for free.
  */
-const THEMES = {
+export const THEMES = {
   1: {
     name: 'Sugar Patch',
     gradient: ['#4a1466', '#2b0a3d', '#1a0525'],

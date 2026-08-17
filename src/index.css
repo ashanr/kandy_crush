@@ -42,18 +42,26 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Base colour only. The travelling "zone" gradient lives on .saga-path
+     instead — painted here it would be pinned to the viewport and never move,
+     which defeats the point of scrolling through zones. */
+  background: var(--bg-deep);
+  position: relative;
+  overflow: hidden;
 }
 
 .saga-title {
   font-size: 2.2rem;
-  font-weight: 800;
-  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
-  letter-spacing: 1px;
+  font-weight: 900;
   margin: 0;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #fff;
+  /* Bubbly 3D Candy Text Shadow */
+  text-shadow: 
+    0px 4px 0px #d81b60,
+    0px 6px 12px rgba(0, 0, 0, 0.4),
+    -2px -2px 0px #ffb3d9,
+    2px 2px 0px #ff4081;
+  letter-spacing: 1px;
 }
 
 .saga-header {
@@ -63,8 +71,22 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 16px) 16px 16px;
-  background: linear-gradient(180deg, var(--bg-deep) 40%, transparent);
-  z-index: 10;
+  /* Frosted Glassmorphism Header.
+     Absolutely positioned so the map genuinely passes *behind* it while
+     scrolling — as a plain flex item (or as `sticky` inside this
+     non-scrolling parent) nothing is ever painted behind it and
+     backdrop-filter has nothing to blur. */
+  background: rgba(25, 20, 40, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 50;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
 }
 
 .saga-scroll-area {
@@ -74,6 +96,8 @@ button {
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
+  /* Clear the absolutely-positioned header above. */
+  padding-top: calc(env(safe-area-inset-top) + 76px);
   /* Hide scrollbar */
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -85,6 +109,62 @@ button {
 .saga-path {
   position: relative;
   width: 100%;
+  /* The zone gradient itself is set inline from the level themes, so each
+     stretch of map previews the backdrop of the level it leads to. */
+}
+
+/* Parallax depth layers — translated at a fraction of the scroll offset so
+   they drift behind the trail rather than tracking it 1:1. */
+.saga-parallax {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.saga-hills {
+  width: 100%;
+  display: block;
+  opacity: 0.35;
+}
+
+.saga-hills--far {
+  opacity: 0.22;
+}
+
+/* ---- Candy trail ---- */
+
+.saga-trail-base,
+.saga-trail-done {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.saga-trail-base {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 14;
+  stroke-dasharray: 2 26;
+}
+
+/* Completed stretch reads as a solid, sugary ribbon. */
+.saga-trail-done {
+  stroke: var(--accent-2);
+  stroke-width: 10;
+  stroke-dasharray: 2 22;
+  filter: drop-shadow(0 0 6px rgba(255, 217, 61, 0.65));
+}
+
+/* ---- Player marker ---- */
+
+.saga-avatar {
+  position: absolute;
+  pointer-events: none;
+  z-index: 20;
+  font-size: 2rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
 }
 
 /* Floating Clouds Parallax Effect */
@@ -110,32 +190,65 @@ button {
   width: 84px;
   height: 84px;
   border-radius: 50%;
-  border: 3px solid var(--card-border);
-  background: linear-gradient(145deg, var(--accent), #ff8fc2);
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25), 0 8px 16px rgba(0, 0, 0, 0.3);
+  /* 3D Stepping Stone / Candy Drop effect */
+  border: 4px solid #fff;
+  background: radial-gradient(circle at 30% 30%, #ff8fc2 0%, var(--accent) 70%, #d81b60 100%);
+  box-shadow: 
+    inset -4px -6px 8px rgba(0, 0, 0, 0.2), /* Inner shadow for spherical volume */
+    inset 4px 6px 8px rgba(255, 255, 255, 0.5), /* Inner highlight */
+    0 8px 0 #b31250, /* 3D Depth / Base */
+    0 12px 16px rgba(0, 0, 0, 0.4); /* Drop shadow on map */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
   color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Reset button default padding to center content perfectly */
+  padding: 0;
+  margin-top: -4px; /* Counter-act the 3D base */
+}
+
+/* Pressed State for tactile feedback */
+.level-node:active:not(:disabled) {
+  transform: translateY(6px) !important; /* Move down */
+  box-shadow: 
+    inset -4px -6px 8px rgba(0, 0, 0, 0.2),
+    inset 4px 6px 8px rgba(255, 255, 255, 0.5),
+    0 2px 0 #b31250, /* Flatten the 3D depth */
+    0 4px 8px rgba(0, 0, 0, 0.4); /* Smaller drop shadow */
 }
 
 .level-node.locked {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: none;
-  color: rgba(255, 255, 255, 0.45);
+  background: radial-gradient(circle at 30% 30%, #6b7280 0%, #4b5563 70%, #374151 100%);
+  border-color: #9ca3af;
+  box-shadow: 
+    inset -4px -6px 8px rgba(0, 0, 0, 0.4),
+    inset 4px 6px 8px rgba(255, 255, 255, 0.2),
+    0 6px 0 #1f2937,
+    0 8px 12px rgba(0, 0, 0, 0.5);
+  color: #9ca3af;
+  text-shadow: none;
 }
 
 .level-node.current-level {
   animation: pulse-node 2s infinite;
-  border-color: var(--accent-2);
+  border-color: #ffeb3b;
+  background: radial-gradient(circle at 30% 30%, #ffeb3b 0%, #f57f17 70%, #e65100 100%);
+  box-shadow: 
+    inset -4px -6px 8px rgba(0, 0, 0, 0.2),
+    inset 4px 6px 8px rgba(255, 255, 255, 0.6),
+    0 8px 0 #bf360c,
+    0 12px 16px rgba(0, 0, 0, 0.4),
+    0 0 20px 5px rgba(255, 235, 59, 0.6);
 }
 
 @keyframes pulse-node {
-  0% { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0.7); }
-  70% { box-shadow: 0 0 0 15px rgba(255, 217, 61, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0); }
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); box-shadow: inset -4px -6px 8px rgba(0,0,0,0.2), inset 4px 6px 8px rgba(255,255,255,0.6), 0 8px 0 #bf360c, 0 16px 24px rgba(0,0,0,0.5), 0 0 35px 10px rgba(255,235,59,0.8); }
+  100% { transform: scale(1); }
 }
 
 .level-number {

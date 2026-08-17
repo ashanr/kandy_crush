@@ -35,20 +35,20 @@ const COLOR_MAP = {
   purple: '#c084fc',
 };
 
-export default function CandyShatter({ color, gridX, gridY, cellW, cellH, onComplete }) {
+// `x`/`y` are the cell's center in grid padding-box coordinates. The caller
+// computes them from cached grid metrics — deriving them here from cell
+// dimensions meant ignoring the grid's padding and gap, and forced a layout
+// read on every render.
+export default function CandyShatter({ color, x, y, onComplete }) {
   const shards = generateShards(color);
   const baseColor = COLOR_MAP[color] || '#ffffff';
-
-  // Position at the center of the cell
-  const cx = gridX * cellW + cellW / 2;
-  const cy = gridY * cellH + cellH / 2;
 
   return (
     <div
       style={{
         position: 'absolute',
-        left: cx,
-        top: cy,
+        left: x,
+        top: y,
         width: 0,
         height: 0,
         pointerEvents: 'none',

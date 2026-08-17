@@ -40,16 +40,23 @@ This document provides a comprehensive overview of all features currently built 
 
 ## 🗺️ 3. Saga World Map & Progress (`src/components/SagaMap.jsx`, `src/App.jsx`)
 
-- **Animated winding path**: level nodes are positioned along a sine-wave curve and connected by a dashed SVG polyline; the map scrolls vertically as more levels are added.
-- **Auto-scroll to current level**: on every visit to the home screen, the map automatically scrolls to center the player's current (next unlocked, not-yet-starred) level, instead of always opening at level 1.
-- **Parallax cloud decorations**: 4 independently-timed floating cloud emoji with CSS drift animation.
-- **Current-level pulse indicator**: the next unlocked, not-yet-starred level gets a distinct pulsing highlight.
+- **Scrolling "zone" world map**: `.saga-path` carries a vertical gradient generated from the per-level `THEMES` in `DynamicBackground.jsx`, so each stretch of map previews the backdrop of the level it leads to (and adding a level extends it automatically). Levels are spaced 170px apart to give the map real scroll travel.
+- **Parallax depth**: two SVG hill layers translate at 0.28x and 0.14x of the scroll offset (rAF-throttled), plus 4 independently-timed floating cloud emoji with CSS drift.
+- **Candy trail**: a dotted SVG polyline connects the nodes, overlaid by a glowing gold ribbon covering the stretch the player has already cleared. Coordinates are computed in measured pixels — SVG's `points` attribute rejects percentage units, which previously prevented the trail from rendering at all.
+- **3D stepping-stone nodes**: spherical gradient candy buttons with inner highlight/shadow and a thick base edge that flattens on press for a tactile push; locked nodes render as dimmed grey stones, and the current node glows and pulses.
+- **Player marker**: a bouncing 🍬 sits above the current level. It's a sibling of the node rather than a child, so it bobs independently instead of inheriting the node's pulse and hover scaling.
+- **Frosted glass header**: absolutely positioned over the scroll region (not a stacked flex sibling) so the map genuinely slides underneath and blurs via `backdrop-filter`, with a bubbly 3D candy text-shadow on the title.
+- **Auto-scroll to current level**: on every visit to the home screen, the map automatically centers the player's current (next unlocked, not-yet-starred) level, instead of always opening at level 1.
+- **Accessible level nodes**: each node carries an `aria-label` conveying level number, name, star count, and lock state.
 - **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
 - **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
 - **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 10 & 11).
 - **Persistent Progress**: Progress, best scores, and star counts are automatically saved in local browser storage (`localStorage`).
 - **Jelly Tiles (Single & Double Layer)** (`src/data/levels.js`, `src/components/GameBoard.jsx`): Translucent background tiles underneath candies, tracked independently of the candy grid so they stay attached to a board position through gravity. Cleared by matching/detonating a candy on top of them — 1 hit for single-layer, 2 for double-layer.
 - **Jelly Clearing Mode**: A level objective type (`objective.type === 'jelly'`) that requires clearing all jelly within the move limit, distinct from score-target levels. Used by "Jelly Jungle" (ring layout) and "Chocolate Chasm" (block layout).
+- **Completion is separate from stars** (`src/utils/progression.js`): clearing a level always unlocks the next one; stars are purely a performance rating on top. These were previously conflated — unlocking required `stars > 0` while stars are score-based, so clearing a jelly objective with a modest score awarded zero stars and silently left the next level locked (simulation measured this at 84% of Jelly Jungle wins). Legacy saves without a `completed` flag fall back to treating any earned star as a clear.
+- **Score levels play out their full move count**: reaching the target no longer ends the level early — the target is a pass line checked when moves run out. Ending on the target capped every run just above it, which made the 2- and 3-star tiers mathematically unreachable (simulated median on level 1 was 1,160 ending early vs 6,770 played out).
+- **Simulation-calibrated balance**: level targets, move limits, and star thresholds are tuned against a greedy objective-aware bot run 200× per level, so all three star tiers fall inside the achievable band and the difficulty curve ramps (97% → 90% → 87% → 68% → 86% bot win rate) instead of collapsing to 1% on Lollipop Lane.
 
 ---
 

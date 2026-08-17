@@ -26,6 +26,7 @@ import {
   playSinhalaLose,
 } from '../utils/sound.js';
 import { getAnnouncement } from '../utils/announcer.js';
+import { measureGrid, cellCenter } from '../utils/gridGeometry.js';
 import { haptics } from '../utils/haptics.js';
 import AnnouncerOverlay from './AnnouncerOverlay.jsx';
 import BoosterBar from './BoosterBar.jsx';
@@ -66,8 +67,26 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const gridRef = useRef(null);
   const dragStart = useRef(null);
   const outcomeSignaled = useRef(false);
-  const prevBoardRef = useRef(null);
   const [shatters, setShatters] = useState([]);
+  const [gridMetrics, setGridMetrics] = useState(null);
+
+  // Keep board geometry in sync with the responsive grid. Without this the
+  // particle canvas was pinned at 360x360 while the grid stretches to 480px,
+  // so effects on the right/bottom of the board were drawn outside the buffer
+  // and silently discarded on essentially every screen size.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return undefined;
+    const sync = () => setGridMetrics(measureGrid(el, ROWS, COLS));
+    sync();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', sync);
+      return () => window.removeEventListener('resize', sync);
+    }
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const [sugarCrushActive, setSugarCrushActive] = useState(false);
   const pendingWinScore = useRef(null);
 
@@ -97,21 +116,30 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     (nextScore, nextMoves, nextJelly) => {
       if (outcomeSignaled.current) return;
       const jellyLeft = nextJelly.flat().reduce((sum, v) => sum + v, 0);
-      if (level.objective.type === 'score' && nextScore >= level.objective.target) {
+
+      const win = () => {
         outcomeSignaled.current = true;
         playSinhalaWin();
         pendingWinScore.current = nextScore;
         setSugarCrushActive(true);
-        return;
-      }
+      };
+
+      // Jelly levels end the moment the objective is met — that IS the goal.
       if (level.objective.type === 'jelly' && jellyLeft === 0) {
-        outcomeSignaled.current = true;
-        playSinhalaWin();
-        pendingWinScore.current = nextScore;
-        setSugarCrushActive(true);
+        win();
         return;
       }
+
+      // Score levels deliberately do NOT end on reaching the target; the player
+      // keeps their remaining moves and banks as high a score as they can.
+      // Ending early capped every run just above the target, which made the 2-
+      // and 3-star tiers mathematically unreachable (simulated median on level 1
+      // was 1,160 when it ended early vs 6,360 played out).
       if (nextMoves <= 0) {
+        if (level.objective.type === 'score' && nextScore >= level.objective.target) {
+          win();
+          return;
+        }
         outcomeSignaled.current = true;
         playSinhalaLose();
         onLose?.(nextScore);
@@ -121,40 +149,33 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   );
 
   const triggerFX = useCallback((posA, posB, result, specialTypes) => {
-    if (!gridRef.current) return;
-    const rect = gridRef.current.getBoundingClientRect();
-    const cellW = rect.width / COLS;
-    const cellH = rect.height / ROWS;
+    const metrics = gridMetrics;
+    if (!metrics) return;
 
-    const getCenter = ([r, c]) => ({
-      x: (c + 0.5) * cellW,
-      y: (r + 0.5) * cellH,
-    });
-
-    const posACenter = getCenter(posA);
+    const posACenter = cellCenter(metrics, posA[0], posA[1]);
 
     // Particle Shards
     globalParticleEngine.spawnMatchBurst(posACenter.x, posACenter.y, '#ffd93d', 18);
 
-    // Special FX
+    // Special FX — beams span the full canvas, which now matches the grid.
     if (specialTypes.includes(SPECIAL.STRIPED_H)) {
-      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'horizontal', rect.width, rect.height, '#38bdf8');
+      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'horizontal', metrics.width, metrics.height, '#38bdf8');
     }
     if (specialTypes.includes(SPECIAL.STRIPED_V)) {
-      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'vertical', rect.width, rect.height, '#38bdf8');
+      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'vertical', metrics.width, metrics.height, '#38bdf8');
     }
     if (specialTypes.includes(SPECIAL.WRAPPED)) {
       globalParticleEngine.spawnWrappedShockwave(posACenter.x, posACenter.y, 140, '#c084fc');
     }
     if (specialTypes.includes(SPECIAL.BOMB)) {
-      const targets = [
-        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
-        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
-        getCenter([Math.floor(Math.random() * 8), Math.floor(Math.random() * 8)]),
-      ];
+      const targets = [0, 1, 2].map(() => cellCenter(
+        metrics,
+        Math.floor(Math.random() * ROWS),
+        Math.floor(Math.random() * COLS),
+      ));
       globalParticleEngine.spawnLightningArc(posACenter.x, posACenter.y, targets, '#ffd93d');
     }
-  }, []);
+  }, [gridMetrics]);
 
   const performMove = useCallback(
     (posA, posB) => {
@@ -347,7 +368,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         className="game-grid"
         style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
       >
-        <ParticleCanvas width={360} height={360} />
+        {gridMetrics && <ParticleCanvas width={gridMetrics.width} height={gridMetrics.height} />}
         <AnimatePresence mode="popLayout">
           {board.map((row, r) =>
             row.map((cell, c) => (
@@ -376,18 +397,20 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
           )}
         </AnimatePresence>
 
-        {/* Shatter Effects Layer */}
-        {shatters.map((s) => (
-          <CandyShatter
-            key={s.id}
-            color={s.color}
-            gridX={s.col}
-            gridY={s.row}
-            cellW={gridRef.current ? gridRef.current.getBoundingClientRect().width / COLS : 45}
-            cellH={gridRef.current ? gridRef.current.getBoundingClientRect().height / ROWS : 45}
-            onComplete={() => setShatters((prev) => prev.filter((x) => x.id !== s.id))}
-          />
-        ))}
+        {/* Shatter Effects Layer — positions come from cached metrics, so this
+            no longer forces a synchronous layout read per shard per render. */}
+        {gridMetrics && shatters.map((s) => {
+          const { x, y } = cellCenter(gridMetrics, s.row, s.col);
+          return (
+            <CandyShatter
+              key={s.id}
+              color={s.color}
+              x={x}
+              y={y}
+              onComplete={() => setShatters((prev) => prev.filter((item) => item.id !== s.id))}
+            />
+          );
+        })}
       </div>
 
       <BoosterBar
