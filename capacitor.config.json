@@ -1,0 +1,8 @@
+{
+  "appId": "com.candycrush.saga",
+  "appName": "Candy Crush Saga Clone",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
