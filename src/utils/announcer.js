@@ -8,10 +8,10 @@
 // Returning both from one function makes that class of bug impossible.
 
 export const BANNER = {
-  niyamai: 'නියමයි!',
-  patta: 'පට්ට!',
-  elakiri: 'එළකිරි!',
-  wedak_na: 'වැඩක් නෑ කතා කරලා!',
+  niyamai: 'Sweet!',
+  patta: 'Tasty!',
+  elakiri: 'Delicious!',
+  wedak_na: 'Unbelievable!',
 };
 
 /**

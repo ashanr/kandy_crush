@@ -40,6 +40,7 @@ import ParticleCanvas from './ParticleCanvas.jsx';
 import DynamicBackground from './DynamicBackground.jsx';
 import { globalParticleEngine } from '../utils/particles.js';
 import SugarCrush from './SugarCrush.jsx';
+import useCountUp from '../hooks/useCountUp.js';
 import StarProgress from './StarProgress.jsx';
 import ScorePopup from './ScorePopup.jsx';
 import ComboLabel from './ComboLabel.jsx';
@@ -111,6 +112,9 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
   const [board, setBoard] = useState(null);
   const [jellyGrid, setJellyGrid] = useState(() => createEmptyJellyGrid(ROWS, COLS));
   const [score, setScore] = useState(0);
+  // The HUD shows a value travelling toward the score, not the score itself —
+  // see useCountUp. The rules always read `score`; only the digits lag.
+  const displayScore = useCountUp(score);
   const [movesLeft, setMovesLeft] = useState(level.moveLimit);
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -347,17 +351,23 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
         return;
       }
 
-      // Score levels deliberately do NOT end on reaching the target; the player
-      // keeps their remaining moves and banks as high a score as they can.
-      // Ending early capped every run just above the target, which made the 2-
-      // and 3-star tiers mathematically unreachable (simulated median on level 1
-      // was 1,160 when it ended early vs 6,360 played out).
-      if (nextMoves <= 0) {
-        if (level.objective.type === 'score' && nextScore >= level.objective.target) {
-          win(nextMoves);
-          return;
-        }
+      // Score levels end the instant the target is crossed, exactly like the
+      // original — and the moves you did not need are the reward.
+      //
+      // They used to be played out to the last move instead, which meant
+      // `leftover` was always 0 on a score level, so every one of them silently
+      // skipped the entire Sugar Crush sequence: no striped candies spawning and
+      // detonating across the board, no score climbing, no bonus. Five of the
+      // eleven levels just cut to the result modal. Finishing in 12 of 20 moves
+      // now pays 8 x 300 on top of the spectacle, and that bonus is where the 2-
+      // and 3-star tiers come from — which is what playing the moves out was
+      // originally trying to achieve.
+      if (level.objective.type === 'score' && nextScore >= level.objective.target) {
+        win(nextMoves);
+        return;
+      }
 
+      if (nextMoves <= 0) {
         // Running out of moves used to be an immediate, final loss. Offer a
         // one-time extension first — the beat where a level looks lost and
         // isn't is most of the drama in a match-3. `outcomeSignaled` stays
@@ -686,8 +696,10 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
           Exit
         </button>
         <div className="hud-stat">
-          Score: <span className={`score-value ${scoreBump ? 'score-bump' : ''}`}>{score}</span>
-          {level.objective.type === 'score' ? ` / ${level.objective.target}` : ''}
+          Score: <span className={`score-value ${scoreBump ? 'score-bump' : ''}`}>
+            {displayScore.toLocaleString()}
+          </span>
+          {level.objective.type === 'score' ? ` / ${level.objective.target.toLocaleString()}` : ''}
         </div>
         <div className={`hud-stat ${movesLeft <= LOW_MOVES ? 'low-moves' : ''}`}>
           Moves: {movesLeft}

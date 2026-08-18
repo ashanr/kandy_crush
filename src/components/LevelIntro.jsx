@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { SPECIAL } from '../game/board.js';
-import { playIntroVoice } from '../utils/sound.js';
 
 // One free special seeded onto the board before the first move. Kept to a
 // single pick: the point is a small opening advantage the player chooses, not
@@ -31,13 +30,13 @@ function objectiveSummary(level) {
       : 0;
     return {
       icon: '🟦',
-      title: 'ජෙලි ඉවත් කරන්න',
+      title: 'Clear All Jelly',
       detail: `Clear all jelly (${tiles} tiles)`,
     };
   }
   return {
     icon: '🎯',
-    title: 'ලකුණු රැස් කරන්න',
+    title: 'Reach Target Score',
     detail: `Reach ${level.objective.target.toLocaleString()} points`,
   };
 }
@@ -45,10 +44,6 @@ function objectiveSummary(level) {
 export default function LevelIntro({ level, onStart, onCancel }) {
   const objective = objectiveSummary(level);
   const [startBooster, setStartBooster] = useState(null);
-
-  useEffect(() => {
-    playIntroVoice();
-  }, []);
 
   return (
     <div className="result-modal" onClick={onCancel}>
@@ -102,7 +97,7 @@ export default function LevelIntro({ level, onStart, onCancel }) {
 
         {/* Pre-game booster: tap to arm, tap again to clear. */}
         <div className="level-intro-boosters">
-          <div className="level-intro-boosters-label">ආරම්භක බූස්ටරය (optional)</div>
+          <div className="level-intro-boosters-label">Start Booster (optional)</div>
           <div className="level-intro-booster-row">
             {START_BOOSTERS.map(({ key, icon, label, hint }) => (
               <button
@@ -122,10 +117,10 @@ export default function LevelIntro({ level, onStart, onCancel }) {
 
         <div className="result-actions">
           <button type="button" className="result-retry" onClick={onCancel}>
-            සිතියම (Map)
+            Map
           </button>
           <button type="button" onClick={() => onStart(startBooster)}>
-            පටන් ගන්න (Start)
+            Start
           </button>
         </div>
       </motion.div>

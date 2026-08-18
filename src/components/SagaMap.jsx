@@ -198,7 +198,7 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
           <div className="saga-title-wrapper">
             <span className="royal-header-crown">👑</span>
             <h1 className="saga-title">
-              සීනි කැට රාජධානිය
+              Candy Saga
             </h1>
           </div>
           {/* The number the map is actually played for. Per-level stars were
@@ -251,7 +251,7 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
               <span className="castle-sparkle sparkle-right">💎</span>
             </div>
             <div className="castle-banner">
-              <span>🏰 සීනි කැට රාජධානිය 🏰</span>
+              <span>🏰 Candy Kingdom 🏰</span>
             </div>
           </div>
 
@@ -422,7 +422,7 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
             >
               <span className="saga-play-badge">👑</span>
               <div className="saga-play-text">
-                <span className="saga-play-label">ගේම් එක පටන් ගන්න</span>
+                <span className="saga-play-label">Play Level</span>
                 <span className="saga-play-level">
                   Level {currentState.level.id} · {currentState.level.name}
                 </span>
@@ -447,30 +447,30 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
               animate={{ scale: 1 }}
               exit={{ scale: 0.8 }}
             >
-              <h2>⚙️ Settings (සැකසුම්)</h2>
+              <h2>⚙️ Settings</h2>
               
               <div className="settings-option">
-                <label>Announcer Voice (කටහඬ)</label>
+                <label>Announcer Voice</label>
                 <div className="voice-toggle">
                   <button 
                     type="button" 
                     className={`toggle-btn ${voice === 'male' ? 'active' : ''}`}
                     onClick={() => handleVoiceChange('male')}
                   >
-                    Male (පිරිමි)
+                    Male
                   </button>
                   <button 
                     type="button" 
                     className={`toggle-btn ${voice === 'female' ? 'active' : ''}`}
                     onClick={() => handleVoiceChange('female')}
                   >
-                    Female (ගැහැණු)
+                    Female
                   </button>
                 </div>
               </div>
 
               <div className="settings-option">
-                <label>Music Style (සංගීතය)</label>
+                <label>Music Style</label>
                 <div className="voice-toggle" style={{ flexWrap: 'wrap' }}>
                   <button 
                     type="button" 
@@ -500,7 +500,7 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
               </div>
 
               <button type="button" className="close-btn" onClick={() => setShowSettings(false)}>
-                Close (වසන්න)
+                Close
               </button>
             </motion.div>
           </motion.div>

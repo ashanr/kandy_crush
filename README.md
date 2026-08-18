@@ -1,15 +1,15 @@
-# සීනි කැට රාජධානිය 👑 (Candy Saga - Sinhala Edition)
+# Candy Saga 👑 (Match-3 Adventure)
 
-A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motion, featuring the **"සීනි කැට රාජධානිය"** (*Sugar Gem Kingdom*) aesthetic, a localized **Sri Lankan / Sinhala Voice Announcer**, and packaged for Android via Capacitor.
+A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motion, featuring a **Sugar Kingdom** aesthetic and packaged for Android via Capacitor.
 
 **App ID**: `app.kandy.crush`
 
 ---
 
-## 🏰 👑 සීනි කැට රාජධානිය (Sugar Gem Kingdom Theme & Visuals)
+## 🏰 👑 Sugar Kingdom Theme & Visual Features
 
 - **👑 Royal Crown Header Banner**:
-  - Main header features **👑 සීනි කැට රාජධානිය** in 3D candy text shadow, an animated golden crown badge, and a frosted glass banner with a glowing golden bottom border.
+  - Main header features **👑 Candy Saga** in 3D candy text shadow, an animated golden crown badge, and a frosted glass banner with a glowing golden bottom border.
 - **🏰 Sugar Gem Castle Peak**:
   - A majestic 3D animated **Sugar Gem Castle** (`🏰✨👑`) crowns the top peak of the winding map trail with a pulsing radial gold aura.
 - **💎 3D Cut Sugar Gem Level Nodes**:
@@ -17,7 +17,7 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
 - **✨ Floating Sugar Kingdom Particles**:
   - Ambient floating sugar crystals, diamonds, crowns, and sparkles (`💎`, `✨`, `👑`, `🍬`, `🔮`, `⭐`) drift continuously across the map backdrop.
 - **🚀 Pulsing Royal Play Button**:
-  - Bottom `"ගේම් එක පටන් ගන්න"` button features a 3D Royal Gold & Magenta bar with a crown badge, spinning sparkle icon, and shimmering light sweep animations.
+  - Bottom `"Play Level"` button features a 3D Royal Gold & Magenta bar with a crown badge, spinning sparkle icon, and shimmering light sweep animations.
 - **📜 Royal Level Briefing Modal**:
   - Pre-game briefing card features a **Golden Crown & Gem Crest** (`💎 👑 💎`), parchment frame with gold borders, glowing target badges, and **3D Holographic Booster Selection Cards**.
 
@@ -61,7 +61,7 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
   - **Star Threshold Burst**: Crossing a star threshold triggers a bouncy scale animation with a golden flash on the earned star marker.
   - **Jelly Clear Splatter**: Translucent cyan glass fragments fly outward when jelly is destroyed.
   - **Color Bomb Vortex**: Spiral energy particles swirl inward before the lightning zap releases.
-  - **Score Bump**: HUD score plays a scale-bounce when points are added. The digits snap to the new value — there is no tweened count-up.
+  - **Score Roll-Up**: HUD score plays a scale-bounce when points are added, and the digits travel to the new value over ~450ms on an easeOutCubic rather than snapping. It is driven off elapsed time, not frame count, so a phone at 30fps takes the same wall-clock time to arrive, and it is skipped entirely under `prefers-reduced-motion`.
   - **Wrapped Candy Pulsing Glow**: Subtle breathing pulse glow that expands outward, hinting at contained energy.
   - **Background Reactivity**: Background flashes brighter on big combos (4+ cascade) and subtly darkens/reddens when a Candy Bomb timer reaches ≤ 2.
   - **Animated Star Reveal**: Victory modal stars spin in one at a time instead of the final tally appearing on the first frame.
@@ -78,8 +78,8 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
 - **Candy Bombs**: timed countdown hazards with a visible fuse badge that turns red under 3 moves; any bomb reaching zero fails the level instantly.
 - **Pre-Level Briefing**: every level opens with a card naming the objective, move budget, 3-star score, and any hazards on the board before you commit to playing.
 - **Animated Saga World Map**: Vertically scrolling layout featuring an SVG winding path, animated floating parallax clouds, glowing stars, and a golden pulsing "current level" indicator. Auto-scrolls to the player's current level on every visit instead of always opening at level 1. Level path with 1 to 3 star ratings and progress saved to `localStorage`.
-- **11 Levels Across 11 Themed Zones**: score-target and jelly-clearing objectives, five distinct jelly layouts (ring, block, checkerboard, corners, full board), and candy bombs on three levels. Targets, move limits and star thresholds are calibrated by simulating each level 250-300x through the real engine.
-- **Sugar Crush Bonus**: clearing an objective early cashes every unspent move in for bonus points, so finishing efficiently is rewarded rather than punished.
+- **11 Levels Across 11 Themed Zones**: score-target and jelly-clearing objectives, five distinct jelly layouts (ring, block, checkerboard, corners, full board), and candy bombs on three levels. Targets, move limits and star thresholds are calibrated by simulating each level 120x through the real engine, driven by a player model that ranks candidate swaps by *visible* information only — bombs, jelly, and immediate match size — never by the cascade that follows. Measured clear rate for an attentive player: 94 / 88 / 88 / 90 / 83 / 73 / 90 / 79 / 68 / 69 / 83%.
+- **Sugar Crush Bonus**: every level ends the instant its objective is met — including score levels, which end the moment the target is crossed — and each unspent move is then cashed in as a real striped candy that spawns and detonates on the board, worth 300 points. Finishing in 12 of 20 moves pays 2,400 on top of the spectacle, so speed is the route to 3 stars.
 - **In-Game Boosters**: Lollipop Hammer, Shuffle Board, and Color Bomb Generator.
 - **Shape-Coded Candies**: each color carries its own silhouette (red kavum dome, green dodol diamond, blue hexagon, orange rounded square, yellow kokis star, purple aggala ball) so color is never the only channel. All six outlines are mutually distinguishable — purple was previously a second star nearly identical to yellow's, separable by hue alone, which defeated the point of shape-coding.
 - **Offline PWA & Capacitor Android APK**: Instant offline loading via Service Worker and ready for Android Studio APK compilation.

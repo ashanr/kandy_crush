@@ -87,12 +87,12 @@ export default function App() {
             <div className="result-card">
               <h2>
                 {result.outcome === 'win'
-                  ? 'දින්නා! 🎉'
+                  ? 'You Won! 🎉'
                   : result.reason === 'bomb'
-                    ? 'බෝම්බය පිපිරුණා! 💣'
-                    : 'අයියෝ! Moves ඉවරයි 😢'}
+                    ? 'Bomb Exploded! 💣'
+                    : 'Out of Moves! 😢'}
               </h2>
-              <p>ලකුණු (Score): {result.score}</p>
+              <p>Score: {result.score}</p>
               {result.outcome === 'win' && (
                 // Stars land one at a time rather than all being present on the
                 // first frame — the reveal is the reward, and showing the final
@@ -124,10 +124,10 @@ export default function App() {
               )}
               <div className="result-actions">
                 <button type="button" onClick={retryLevel} className="result-retry">
-                  නැවත (Retry)
+                  Retry
                 </button>
                 <button type="button" onClick={closeResult}>
-                  {result.outcome === 'win' ? 'ඉදිරියට (Continue)' : 'සිතියම (Map)'}
+                  {result.outcome === 'win' ? 'Continue' : 'Map'}
                 </button>
               </div>
             </div>

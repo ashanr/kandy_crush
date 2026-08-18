@@ -232,7 +232,7 @@ export default function SugarCrush({ bonus, onComplete }) {
           transition={{ delay: 0.9, type: 'spring', stiffness: 220, damping: 18 }}
         >
           <span className="sugar-bonus-moves">
-            {bonus.moves} ඉතිරි moves
+            {bonus.moves} moves left
           </span>
           <span className="sugar-bonus-points">+{bonus.bonus.toLocaleString()}</span>
         </motion.div>
