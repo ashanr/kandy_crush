@@ -1,6 +1,69 @@
 import { memo, useMemo } from 'react';
 import { SPECIAL } from '../game/board.js';
 
+/**
+ * Candy silhouettes, one per colour.
+ *
+ * These were previously a heart, a star, a diamond, a hexagon, a circle and a
+ * rounded square — gem and motif shapes, which is why the board read as a jewel
+ * game rather than a candy one. The set below is confectionery instead: a jelly
+ * bean, a wrapped lozenge, a lemon drop, a square chew, a boiled sweet and a
+ * cluster.
+ *
+ * Shape-coding is the hard constraint. Colour must never be the only channel
+ * that separates two candies, so all six outlines stay mutually distinguishable
+ * in silhouette alone: elongated-and-tilted, angular-and-wide, asymmetric-point,
+ * four-equal-sides, plain-round, scalloped. (The circle moved from purple to
+ * blue when purple became the cluster; purple had been given the circle earlier
+ * only to stop it duplicating yellow's star, and that star is now gone.)
+ *
+ * Each is a single path string so the body, the rim shading, the gloss and the
+ * stripe overlay can all reuse it — the shading used to be a fixed r=22 circle
+ * painted over every shape, which bled outside anything that wasn't round.
+ */
+
+// Capsule between two points, so the bean reads as tilted without a transform
+// (a transform would have to be repeated on the clipPath to stay in register).
+const JELLY_BEAN = 'M27.5 49.5L49.5 27.5A12 12 0 0 0 32.5 10.5L10.5 32.5A12 12 0 0 0 27.5 49.5Z';
+
+// A single closed scalloped outline, not six overlapping circles.
+//
+// Overlapping circles filled correctly, but the contour stroke follows every
+// subpath, so all six internal boundaries showed through and the candy rendered
+// as a ring pattern rather than a solid cluster. Tracing only the outer
+// silhouette gives one path that both fills and strokes cleanly — and it fills
+// the centre for free, which the circle version needed a seventh subpath to do
+// (the origin sits outside every petal: centres are 11 out, radius 10).
+const CLUSTER = (() => {
+  const cx = 30, cy = 30, r = 10, dist = 11;
+  // Where two adjacent petals cross, measured out from the centre.
+  const R = dist * Math.cos(Math.PI / 6) + Math.sqrt(r * r - (dist / 2) ** 2);
+  const vertex = (i) => {
+    const a = (Math.PI / 3) * i - Math.PI / 3;
+    return [cx + Math.cos(a) * R, cy + Math.sin(a) * R];
+  };
+  const [sx, sy] = vertex(5);
+  let d = `M${sx.toFixed(2)} ${sy.toFixed(2)}`;
+  for (let i = 0; i < 6; i += 1) {
+    const [x, y] = vertex(i);
+    d += `A${r} ${r} 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }
+  return `${d}Z`;
+})();
+
+const CANDY_SHAPES = {
+  red: JELLY_BEAN,
+  // Wrapped lozenge — flat top and bottom, points at the sides.
+  orange: 'M12 30L21 14L39 14L48 30L39 46L21 46Z',
+  // Lemon drop — pinched at the top, round underneath.
+  yellow: 'M30 7C36 18 48 24 48 34A18 18 0 1 1 12 34C12 24 24 18 30 7Z',
+  // Square chew.
+  green: 'M21 12H39A9 9 0 0 1 48 21V39A9 9 0 0 1 39 48H21A9 9 0 0 1 12 39V21A9 9 0 0 1 21 12Z',
+  // Boiled sweet.
+  blue: 'M9 30A21 21 0 1 1 51 30A21 21 0 1 1 9 30Z',
+  purple: CLUSTER,
+};
+
 function CandySprite({ color, special, bombTimer, size = 48 }) {
   const isColorBomb = special === SPECIAL.BOMB;
   const isWrapped = special === SPECIAL.WRAPPED;
@@ -113,10 +176,9 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
           <path d="M22 30 L27 36 L39 20" stroke="#ffd93d" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : (
-        /* 5. NORMAL CANDY WITH GLOSSY SVG SHAPES */
+        /* 5. NORMAL CANDY */
         <svg width={size} height={size} viewBox="0 0 60 60" fill="none">
           <defs>
-            {/* Color Gradients */}
             <radialGradient id={`grad-${color}`} cx="30" cy="20" r="40" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor={getColorLight(color)} />
               <stop offset="50%" stopColor={getColorBase(color)} />
@@ -124,19 +186,19 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
               <stop offset="100%" stopColor="#000000" stopOpacity="0.4" />
             </radialGradient>
 
-            {/* Inner Gloss Overlay - Top Highlight */}
-            <linearGradient id="gloss-top" x1="0" y1="0" x2="0" y2="1">
-              <stop stopColor="#ffffff" stopOpacity="0.8" />
-              <stop offset="0.4" stopColor="#ffffff" stopOpacity="0.1" />
-              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+            {/* Bright at the top, dark at the bottom — the whole 3D read of a
+                hard sweet. Painted through the shape's own clip so it follows
+                the silhouette instead of a bounding circle. */}
+            <linearGradient id="candy-rim" x1="0" y1="0" x2="0" y2="1">
+              <stop stopColor="#ffffff" stopOpacity="0.55" />
+              <stop offset="0.42" stopColor="#ffffff" stopOpacity="0.04" />
+              <stop offset="0.72" stopColor="#000000" stopOpacity="0.06" />
+              <stop offset="1" stopColor="#000000" stopOpacity="0.42" />
             </linearGradient>
-            
-            {/* Inner Shadow Overlay - Bottom Edge */}
-            <linearGradient id="shadow-bottom" x1="0" y1="0" x2="0" y2="1">
-              <stop stopColor="#000000" stopOpacity="0" />
-              <stop offset="0.6" stopColor="#000000" stopOpacity="0.1" />
-              <stop offset="1" stopColor="#000000" stopOpacity="0.6" />
-            </linearGradient>
+
+            <clipPath id={`clip-${color}`}>
+              <path d={CANDY_SHAPES[color]} />
+            </clipPath>
 
             <filter id="candy-shadow" x="-20%" y="-20%" width="140%" height="140%">
               {/* One shadow, not two. Every candy on the board instantiates
@@ -147,98 +209,48 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             </filter>
           </defs>
 
-          {/* CANDY SHAPES — one silhouette per colour, see shape-coding note below */}
           <g filter="url(#candy-shadow)">
-            {color === 'red' && (
-              /* Heart / dome */
-              <path
-                d="M30 10 C 15 0, 5 20, 30 52 C 55 20, 45 0, 30 10 Z"
-                fill={`url(#grad-${color})`}
-              />
-            )}
+            <path d={CANDY_SHAPES[color]} fill={`url(#grad-${color})`} />
 
-            {color === 'yellow' && (
-              /* Star */
-              <path
-                d="M30 6 L36 20 L52 20 L38 30 L44 46 L30 36 L16 46 L22 30 L8 20 L24 20 Z"
-                fill={`url(#grad-${color})`}
-              />
-            )}
+            {/* Everything below is clipped to the candy, so a highlight can
+                never float outside its own outline. */}
+            <g clipPath={`url(#clip-${color})`}>
+              <path d={CANDY_SHAPES[color]} fill="url(#candy-rim)" />
 
-            {color === 'green' && (
-              /* Diamond */
-              <polygon
-                points="30,8 50,30 30,52 10,30"
-                fill={`url(#grad-${color})`}
-              />
-            )}
+              {/* Two-part specular: a soft bloom with a tight hot core sitting
+                  inside it. A single ellipse reads as a painted-on white blob. */}
+              <ellipse cx="24" cy="17" rx="11" ry="6.5" fill="#ffffff" opacity="0.38" transform="rotate(-22 24 17)" />
+              <ellipse cx="22.5" cy="15.5" rx="6" ry="3.1" fill="#ffffff" opacity="0.92" transform="rotate(-22 22.5 15.5)" />
 
-            {color === 'purple' && (
-              /* Ball — a round sweet.
-                 Purple used to be a 10-vertex "royal star", virtually the same
-                 silhouette as yellow's star. Shape-coding only helps
-                 colorblind players if the shapes are actually distinguishable,
-                 and those two were separable by hue alone — exactly the channel
-                 the coding exists to back up. A circle shares its outline with
-                 nothing else on the board. */
-              <>
-                <circle cx="30" cy="30" r="21" fill={`url(#grad-${color})`} />
-                {/* Faint swirl so it reads as a sweet rather than a plain dot. */}
-                <path
-                  d="M20 32 Q 26 20, 34 26 T 41 32"
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeOpacity="0.35"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-              </>
-            )}
+              {/* STRIPED CANDY OVERLAY LINES — inside the clip, so stripes stop
+                  at the candy's edge rather than running past it. */}
+              {isStripedH && (
+                <g stroke="#ffffff" strokeWidth="5" strokeLinecap="butt" opacity="0.9">
+                  <line x1="4" y1="20" x2="56" y2="20" />
+                  <line x1="4" y1="30" x2="56" y2="30" />
+                  <line x1="4" y1="40" x2="56" y2="40" />
+                </g>
+              )}
+              {isStripedV && (
+                <g stroke="#ffffff" strokeWidth="5" strokeLinecap="butt" opacity="0.9">
+                  <line x1="20" y1="4" x2="20" y2="56" />
+                  <line x1="30" y1="4" x2="30" y2="56" />
+                  <line x1="40" y1="4" x2="40" y2="56" />
+                </g>
+              )}
+            </g>
 
-            {color === 'blue' && (
-              /* Ocean Hexagon Shape */
-              <polygon
-                points="30,8 48,18 48,42 30,52 12,42 12,18"
-                fill={`url(#grad-${color})`}
-              />
-            )}
-
-            {color === 'orange' && (
-              /* Mango Rounded Square */
-              <rect
-                x="12"
-                y="12"
-                width="36"
-                height="36"
-                rx="10"
-                fill={`url(#grad-${color})`}
-              />
-            )}
-            
-            {/* Top Highlight & Bottom Shadow Layers (applied to bounding box) */}
-            <circle cx="30" cy="30" r="22" fill="url(#shadow-bottom)" />
-            <circle cx="30" cy="30" r="22" fill="url(#gloss-top)" style={{ mixBlendMode: 'overlay' }} />
+            {/* Dark contour. Candy art in this genre is outlined; without it
+                adjacent same-hue candies merge into one blob on a busy board. */}
+            <path
+              d={CANDY_SHAPES[color]}
+              fill="none"
+              stroke={getColorDark(color)}
+              strokeOpacity="0.55"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
           </g>
-
-          {/* Intense Gloss Sheen Reflection */}
-          <ellipse cx="22" cy="16" rx="10" ry="4" fill="#ffffff" opacity="0.8" transform="rotate(-20 22 16)" filter="blur(1px)" />
-          <ellipse cx="22" cy="16" rx="6" ry="2" fill="#ffffff" opacity="1" transform="rotate(-20 22 16)" />
-
-          {/* STRIPED CANDY OVERLAY LINES */}
-          {isStripedH && (
-            <g stroke="#ffffff" strokeWidth="5" strokeLinecap="round" opacity="0.9">
-              <line x1="12" y1="20" x2="48" y2="20" />
-              <line x1="10" y1="30" x2="50" y2="30" />
-              <line x1="12" y1="40" x2="48" y2="40" />
-            </g>
-          )}
-          {isStripedV && (
-            <g stroke="#ffffff" strokeWidth="5" strokeLinecap="round" opacity="0.9">
-              <line x1="20" y1="12" x2="20" y2="48" />
-              <line x1="30" y1="10" x2="30" y2="50" />
-              <line x1="40" y1="12" x2="40" y2="48" />
-            </g>
-          )}
 
           {/* WRAPPED CANDY OVERLAY WRAPPER */}
           {isWrapped && (
@@ -349,7 +361,7 @@ function getColorLight(color) {
     yellow: '#ffea79',
     green: '#86efac',
     blue: '#7dd3fc',
-    purple: '#e9d5ff',
+    purple: '#d8b4fe',
   };
   return map[color] || '#ffffff';
 }
@@ -357,8 +369,8 @@ function getColorLight(color) {
 function getColorDark(color) {
   const map = {
     red: '#c9184a',
-    orange: '#e056fd',
-    yellow: '#d4a373',
+    orange: '#d97706',
+    yellow: '#e0a800',
     green: '#16a34a',
     blue: '#0284c7',
     purple: '#9333ea',
