@@ -51,6 +51,34 @@ const CLUSTER = (() => {
   return `${d}Z`;
 })();
 
+// Sprinkles for the Colour Bomb, laid out once at module scope: every bomb on
+// the board is the same sprite, so there is nothing to randomise per instance.
+//
+// Placed on a golden-angle spiral with radius scaled by sqrt(i/n), which spreads
+// them evenly by AREA rather than by angle — a naive random scatter clumps in
+// the middle. Each sprinkle is also flattened and shrunk the further out it
+// sits, faking the foreshortening of a sphere; that, not the sprinkle colours,
+// is what stops it reading as a flat disc with dots on it.
+const BOMB_SPRINKLES = (() => {
+  const palette = ['#ff4d6d', '#ff9f43', '#ffd93d', '#4ade80', '#38bdf8', '#c084fc', '#ffffff'];
+  const count = 28;
+  const radius = 20;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  return Array.from({ length: count }, (_, i) => {
+    const t = Math.sqrt((i + 0.5) / count);
+    const a = i * goldenAngle;
+    const flatten = 1 - 0.6 * t * t;
+    return {
+      x: 30 + Math.cos(a) * t * radius,
+      y: 30 + Math.sin(a) * t * radius,
+      rx: 2.7 * flatten,
+      ry: 1.3 * flatten,
+      rot: ((a * 180) / Math.PI) % 180,
+      fill: palette[i % palette.length],
+    };
+  });
+})();
+
 const CANDY_SHAPES = {
   red: JELLY_BEAN,
   // Wrapped lozenge — flat top and bottom, points at the sides.
@@ -96,25 +124,47 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
       {isColorBomb ? (
         <svg width={size} height={size} viewBox="0 0 60 60" fill="none">
           <defs>
-            <radialGradient id="chocoGrad" cx="30" cy="20" r="30" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#5c3d2e" />
-              <stop offset="1" stopColor="#2b1810" />
+            {/* Off-centre light source. A centred radial gradient reads as a
+                flat disc no matter how many sprinkles sit on it. */}
+            <radialGradient id="cb-body" cx="21" cy="17" r="36" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#565073" />
+              <stop offset="45%" stopColor="#2a2338" />
+              <stop offset="100%" stopColor="#0a0810" />
             </radialGradient>
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            {/* Bounce light along the lower-right rim — the cue that separates a
+                sphere from a hole. */}
+            <radialGradient id="cb-rim" cx="41" cy="44" r="20" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+            </radialGradient>
+            <clipPath id="cb-clip">
+              <circle cx="30" cy="30" r="23" />
+            </clipPath>
+            <filter id="cb-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.5" />
             </filter>
           </defs>
-          {/* Main Chocolate Donut Ball */}
-          <circle cx="30" cy="30" r="24" fill="url(#chocoGrad)" filter="url(#glow)" />
-          {/* Rainbow Sprinkles */}
-          <circle cx="20" cy="20" r="3.5" fill="#ff4d6d" />
-          <circle cx="38" cy="18" r="3" fill="#ffd93d" />
-          <circle cx="30" cy="38" r="3.5" fill="#38bdf8" />
-          <circle cx="18" cy="36" r="3" fill="#4ade80" />
-          <circle cx="38" cy="36" r="3" fill="#c084fc" />
-          <circle cx="30" cy="16" r="2.5" fill="#ffffff" />
-          <circle cx="24" cy="28" r="3" fill="#ff9f43" />
+
+          <g filter="url(#cb-shadow)">
+            <circle cx="30" cy="30" r="23" fill="url(#cb-body)" />
+            <g clipPath="url(#cb-clip)">
+              {BOMB_SPRINKLES.map((s, i) => (
+                <ellipse
+                  key={i}
+                  cx={s.x}
+                  cy={s.y}
+                  rx={s.rx}
+                  ry={s.ry}
+                  fill={s.fill}
+                  transform={`rotate(${s.rot} ${s.x} ${s.y})`}
+                />
+              ))}
+              <circle cx="30" cy="30" r="23" fill="url(#cb-rim)" />
+              <ellipse cx="22" cy="16" rx="10" ry="5.5" fill="#ffffff" opacity="0.30" transform="rotate(-24 22 16)" />
+              <ellipse cx="20.5" cy="14.5" rx="5" ry="2.5" fill="#ffffff" opacity="0.75" transform="rotate(-24 20.5 14.5)" />
+            </g>
+            <circle cx="30" cy="30" r="23" fill="none" stroke="#000000" strokeOpacity="0.45" strokeWidth="1.6" />
+          </g>
         </svg>
       ) : isJellyFish ? (
         /* 2. JELLY FISH CANDY */
@@ -215,29 +265,32 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             {/* Everything below is clipped to the candy, so a highlight can
                 never float outside its own outline. */}
             <g clipPath={`url(#clip-${color})`}>
+              {/* STRIPED CANDY BANDS — drawn FIRST, so the rim shading and the
+                  specular below paint over them. They used to sit on top of
+                  both, which is why a striped candy read as a plain sweet with
+                  three lines painted on it instead of one moulded piece: the
+                  stripes stayed flat while the candy under them curved. */}
+              {isStripedH && (
+                <g fill="#ffffff" opacity="0.82">
+                  <rect x="2" y="16.5" width="56" height="6" />
+                  <rect x="2" y="26.5" width="56" height="6" />
+                  <rect x="2" y="36.5" width="56" height="6" />
+                </g>
+              )}
+              {isStripedV && (
+                <g fill="#ffffff" opacity="0.82">
+                  <rect x="16.5" y="2" width="6" height="56" />
+                  <rect x="26.5" y="2" width="6" height="56" />
+                  <rect x="36.5" y="2" width="6" height="56" />
+                </g>
+              )}
+
               <path d={CANDY_SHAPES[color]} fill="url(#candy-rim)" />
 
               {/* Two-part specular: a soft bloom with a tight hot core sitting
                   inside it. A single ellipse reads as a painted-on white blob. */}
               <ellipse cx="24" cy="17" rx="11" ry="6.5" fill="#ffffff" opacity="0.38" transform="rotate(-22 24 17)" />
               <ellipse cx="22.5" cy="15.5" rx="6" ry="3.1" fill="#ffffff" opacity="0.92" transform="rotate(-22 22.5 15.5)" />
-
-              {/* STRIPED CANDY OVERLAY LINES — inside the clip, so stripes stop
-                  at the candy's edge rather than running past it. */}
-              {isStripedH && (
-                <g stroke="#ffffff" strokeWidth="5" strokeLinecap="butt" opacity="0.9">
-                  <line x1="4" y1="20" x2="56" y2="20" />
-                  <line x1="4" y1="30" x2="56" y2="30" />
-                  <line x1="4" y1="40" x2="56" y2="40" />
-                </g>
-              )}
-              {isStripedV && (
-                <g stroke="#ffffff" strokeWidth="5" strokeLinecap="butt" opacity="0.9">
-                  <line x1="20" y1="4" x2="20" y2="56" />
-                  <line x1="30" y1="4" x2="30" y2="56" />
-                  <line x1="40" y1="4" x2="40" y2="56" />
-                </g>
-              )}
             </g>
 
             {/* Dark contour. Candy art in this genre is outlined; without it
@@ -252,20 +305,43 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             />
           </g>
 
-          {/* WRAPPED CANDY OVERLAY WRAPPER */}
+          {/* WRAPPED CANDY — an actual wrapper.
+              This was a white dashed rectangle drawn over the candy, which
+              reads as a UI annotation (a selection marquee) rather than as
+              cellophane. A wrapper is a translucent film with a hard diagonal
+              sheen plus crimped ends pinched at the sides. The candy body still
+              shows through, so the colour stays identifiable. */}
           {isWrapped && (
-            <rect
-              x="8"
-              y="8"
-              width="44"
-              height="44"
-              rx="8"
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth="4"
-              strokeDasharray="6 4"
-              opacity="0.85"
-            />
+            <g>
+              {/* Crimped ends, in the candy's own dark tone so they read as the
+                  same piece of wrapper rather than applied decoration. */}
+              <path d="M13 23L4 16L6 30L4 44L13 37Z" fill={getColorDark(color)} />
+              <path d="M47 23L56 16L54 30L56 44L47 37Z" fill={getColorDark(color)} />
+              <path
+                d="M13 23L4 16L6 30L4 44L13 37M47 23L56 16L54 30L56 44L47 37"
+                fill="none"
+                stroke="#ffffff"
+                strokeOpacity="0.3"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+
+              {/* Film over the sweet, and one hard highlight streak across it —
+                  the streak is what makes it read as plastic. */}
+              <rect x="8" y="9" width="44" height="42" rx="13" fill="#ffffff" opacity="0.11" />
+              <path d="M20 47L37 12L44 12L27 47Z" fill="#ffffff" opacity="0.22" />
+              <rect
+                x="8"
+                y="9"
+                width="44"
+                height="42"
+                rx="13"
+                fill="none"
+                stroke="#ffffff"
+                strokeOpacity="0.32"
+                strokeWidth="1.3"
+              />
+            </g>
           )}
         </svg>
       )}

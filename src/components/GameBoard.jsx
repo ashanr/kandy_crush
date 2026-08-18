@@ -40,6 +40,7 @@ import ParticleCanvas from './ParticleCanvas.jsx';
 import DynamicBackground from './DynamicBackground.jsx';
 import { globalParticleEngine } from '../utils/particles.js';
 import SugarCrush from './SugarCrush.jsx';
+import ObjectivePanel from './ObjectivePanel.jsx';
 import useCountUp from '../hooks/useCountUp.js';
 import StarProgress from './StarProgress.jsx';
 import ScorePopup from './ScorePopup.jsx';
@@ -690,21 +691,34 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
             actually invested moves. */}
         <button
           type="button"
-          className="hud-btn"
+          className="hud-exit"
+          aria-label="Exit level"
           onClick={() => (movesLeft < level.moveLimit ? setConfirmExit(true) : onExit?.())}
         >
-          Exit
+          ✕
         </button>
-        <div className="hud-stat">
-          Score: <span className={`score-value ${scoreBump ? 'score-bump' : ''}`}>
-            {displayScore.toLocaleString()}
-          </span>
-          {level.objective.type === 'score' ? ` / ${level.objective.target.toLocaleString()}` : ''}
+
+        {/* Three equal panels: what's left to do, how many moves remain, and the
+            score. Each is a big number over a small label, so the numbers are
+            readable at a glance mid-move rather than being parsed out of a
+            sentence. All are aria-hidden — the live region below already
+            reports the same values to assistive tech, and duplicating them
+            makes every board update announce twice. */}
+        <div className="hud-panels">
+          <ObjectivePanel level={level} score={score} jellyRemaining={jellyRemaining} />
+
+          <div className={`hud-panel ${movesLeft <= LOW_MOVES ? 'low-moves' : ''}`} aria-hidden="true">
+            <span className="hud-panel-value">{movesLeft}</span>
+            <span className="hud-panel-label">Moves</span>
+          </div>
+
+          <div className="hud-panel" aria-hidden="true">
+            <span className={`hud-panel-value score-value ${scoreBump ? 'score-bump' : ''}`}>
+              {displayScore.toLocaleString()}
+            </span>
+            <span className="hud-panel-label">Score</span>
+          </div>
         </div>
-        <div className={`hud-stat ${movesLeft <= LOW_MOVES ? 'low-moves' : ''}`}>
-          Moves: {movesLeft}
-        </div>
-        {level.objective.type === 'jelly' && <div className="hud-stat">Jelly: {jellyRemaining}</div>}
       </div>
 
       <StarProgress score={score} thresholds={level.starThresholds} />

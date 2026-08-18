@@ -661,43 +661,104 @@ button {
   flex-wrap: wrap;
 }
 
-.hud-btn {
+/* ---------------- HUD panels ----------------
+   Three equal-width panels, each a large value over a small caption. The HUD
+   was previously three text pills ("Score: 1,240 / 3,000") which had to be read
+   as sentences; these are meant to be glanceable mid-move. */
+
+.hud-exit {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
+  border-radius: 50%;
   color: var(--text-light);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1;
   transition: all 0.2s;
 }
 
-.hud-btn:hover {
+.hud-exit:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.hud-stat {
+.hud-panels {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.hud-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 6px;
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  border-radius: 14px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.hud-panel-value {
+  /* Shrinks with the board rather than the viewport, so a 5-digit score on a
+     narrow phone stays inside its panel instead of overflowing it. */
+  font-size: clamp(0.95rem, calc(var(--board-size) * 0.062), 1.4rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--text-light);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-panel-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.62;
+}
+
+/* The objective reads as icon + count on one line, so the icon carries the
+   "what" and the label row is not needed. */
+.objective-panel {
+  flex-direction: row;
+  gap: 6px;
+}
+
+.objective-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.objective-panel.complete {
+  border-color: rgba(74, 222, 128, 0.85);
+  background: rgba(74, 222, 128, 0.22);
 }
 
 /* Rolling score counter animation */
-.hud-stat .score-value {
+.hud-panel .score-value {
   display: inline-block;
   transition: transform 0.15s ease-out;
 }
 
-.hud-stat .score-value.score-bump {
+.hud-panel .score-value.score-bump {
   animation: scoreBump 0.3s ease-out;
 }
 
@@ -1801,7 +1862,7 @@ button {
 
 /* ---------------- HUD: low-moves warning ---------------- */
 
-.hud-stat.low-moves {
+.hud-panel.low-moves {
   color: #fff;
   background: rgba(255, 77, 109, 0.28);
   border-color: rgba(255, 77, 109, 0.8);
