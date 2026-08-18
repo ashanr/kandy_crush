@@ -8,7 +8,7 @@ This document provides a comprehensive overview of all features currently built 
 
 - **Dynamic 8x8 Grid**: Full grid management supporting candy spawning, movement, matching, and falling gravity physics.
 - **Touch & Swipe Controls**: Intuitive mobile drag-and-swipe interaction for swapping adjacent tiles.
-- **Invalid Swap Rejection**: A swap that creates no match (and involves no special candy) is rejected before any state change — the board never visibly moves, and a rejection sound/haptic plays instead. There is currently no "swap forward then animate back" motion; the board simply doesn't change.
+- **Invalid Swap Rejection**: A swap that creates no match (and involves no special candy) is rejected before any state change — the board never visibly moves. A rejection sound and haptic fire, and both tiles play a 320ms shake (`.candy-cell.rejected`) so the refusal reads as "that move isn't legal" rather than as a dropped input. There is still no "swap forward then animate back" motion; the candies shake in place.
 - **Cascading Combo Engine**: Continuous automatic matching of falling candies with increasing score multipliers for multi-stage cascades (capped at 25 iterations as a safety guard against pathological refills).
 - **No-Match Detection & Reshuffle**: Automatic detection when no valid moves remain on the board, triggering an automatic board reshuffle.
 
@@ -41,6 +41,12 @@ This document provides a comprehensive overview of all features currently built 
   - **Any other pairing** (e.g. Jelly Fish + Striped, Jelly Fish + Wrapped, Jelly Fish + Jelly Fish): falls back to each special detonating its own individual effect at its own position — the move always does *something*, it just doesn't yet have a bespoke combo shape. See `docs/missing_features.md` for the flavor-specific combos still to design (e.g. "Striped Fish", fish swarms).
 - **Chain Reactions**: Any special candy caught inside another special's blast radius (from a match cascade OR a combo swap) also detonates, recursively.
 
+### Candy Bombs (timed hazard)
+
+- **Countdown hazard** (`finalizeMove()` in `board.js`): levels may seed N bombs with a fuse length (`initialBombs` / `bombTimer` in `src/data/levels.js`; currently "Chocolate Chasm" at 3 bombs / 12 moves). Every valid move — including booster uses — decrements every bomb on the board. Any bomb reaching zero ends the level immediately in a loss.
+- **Visible countdown** (`CandySprite.jsx`): a bombed candy renders a dark radial overlay with a 🔥 fuse spark and a monospace countdown badge, switching to a red `danger-pulse` at 3 moves or fewer. This overlay existed but was dead code until `GameBoard` was fixed to forward the `bombTimer` prop — bombs previously ticked down and ended the run completely invisibly, which simulation measured as an unexplained instant loss in 16.3% of level-5 runs (always on move 12 of 15).
+- **Distinct loss reason**: `onLose` carries a reason so the result modal reads *බෝම්බය පිපිරුණා! 💣* on a bomb detonation instead of incorrectly claiming the player ran out of moves.
+
 ---
 
 ## 🗺️ 3. Saga World Map & Progress (`src/components/SagaMap.jsx`, `src/App.jsx`)
@@ -55,18 +61,24 @@ This document provides a comprehensive overview of all features currently built 
 - **Accessible level nodes**: each node carries an `aria-label` conveying level number, name, star count, and lock state.
 - **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
 - **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
-- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 11 & 12).
+- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 12 & 13).
 - **Persistent Progress**: Progress, best scores, and star counts are automatically saved in local browser storage (`localStorage`).
 - **Jelly Tiles (Single & Double Layer)** (`src/data/levels.js`, `src/components/GameBoard.jsx`): Translucent background tiles underneath candies, tracked independently of the candy grid so they stay attached to a board position through gravity. Cleared by matching/detonating a candy on top of them — 1 hit for single-layer, 2 for double-layer.
 - **Jelly Clearing Mode**: A level objective type (`objective.type === 'jelly'`) that requires clearing all jelly within the move limit, distinct from score-target levels. Used by "Jelly Jungle" (ring layout) and "Chocolate Chasm" (block layout).
 - **Completion is separate from stars** (`src/utils/progression.js`): clearing a level always unlocks the next one; stars are purely a performance rating on top. These were previously conflated — unlocking required `stars > 0` while stars are score-based, so clearing a jelly objective with a modest score awarded zero stars and silently left the next level locked (simulation measured this at 84% of Jelly Jungle wins). Legacy saves without a `completed` flag fall back to treating any earned star as a clear.
 - **Score levels play out their full move count**: reaching the target no longer ends the level early — the target is a pass line checked when moves run out. Ending on the target capped every run just above it, which made the 2- and 3-star tiers mathematically unreachable (simulated median on level 1 was 1,160 ending early vs 6,770 played out).
-- **Simulation-calibrated balance**: level targets, move limits, and star thresholds are tuned against a greedy objective-aware bot run 200× per level, so all three star tiers fall inside the achievable band and the difficulty curve ramps (97% → 90% → 87% → 68% → 86% bot win rate) instead of collapsing to 1% on Lollipop Lane.
+- **10 levels across 10 themed zones**: 5 score-target levels and 5 jelly levels, three of which also carry candy bombs. Jelly layouts come from five shape builders — ring, centre block, checkerboard (spread across the board so it can't be cleared by camping one region), corners (the hardest area to reach, since gravity refills from the top), and full coverage for the finale.
+- **Simulation-calibrated balance**: level targets, move limits, and star thresholds are tuned against a greedy objective- and bomb-aware bot run 250–300× per level, so all three star tiers fall inside the achievable band. Measured bot win rate across the 10 levels: 93 / 94 / 85 / 67 / 84 / 76 / 80 / 69 / 55 / 65%. The per-level star distribution is recorded in the comment block at the top of `src/data/levels.js`.
+- **A win always earns at least one star**: the 1-star tier sits below the observed win floor on every level — pinned to the objective target on score levels (the target *is* the pass line), and under the p10 of winning scores on jelly levels. An earlier calibration placed it at the p15 and produced 0-star wins on 10–16% of every jelly level.
+- **Level invariants are tested** (`src/data/levels.test.js`, 46 cases): sequential ids, ascending thresholds, a star guaranteed at the score target, correctly-sized jelly layouts that actually contain jelly, bomb fuses shorter than the move limit (a fuse ≥ the limit can never detonate, silently reducing the hazard to decoration), and a matching background theme for every level.
 
 ---
 
 ## 🧭 4. In-Game UX Aids
 
+- **Pre-level briefing card** (`src/components/LevelIntro.jsx`): selecting a map node opens a briefing before the board mounts, showing the level number and name, the objective as an icon plus Sinhala/English text (jelly levels count the actual tiles in `jellyLayout`), the move budget, the 3-star score, and a red hazard banner naming bomb count and fuse length on levels that carry them. Previously the map dropped the player straight onto a board with no statement of the objective — it had to be inferred from the HUD mid-play, and candy bombs could end the run before they were ever explained. `App.jsx` routes this via a `pendingLevel` state; map music keeps playing through the briefing since `setBGMScene` keys off `activeLevel`. Retry after a loss re-enters the board directly rather than passing through the card again.
+- **Sugar Crush leftover-moves bonus** (`GameBoard.jsx`, `SugarCrush.jsx`): clearing the objective early cashes every unspent move in at 300 points, mirroring the original's habit of converting leftover moves into striped candies and detonating them. The celebration overlay shows the arithmetic (`N ඉතිරි moves` → `+1,800`) rather than silently inflating the score. This removed a measured perverse incentive: jelly levels end the instant the objective is met, so clearing efficiently used to starve the score and cost stars, making the star-maximising strategy *avoid* the objective. Score levels win with 0 moves remaining and so bank no bonus.
+- **Floating score popups** (`src/components/ScorePopup.jsx`): the points earned by a move drift up off the swapped cell, in bigger gold type at 500+. Previously a 3-match and a wrapped+striped combo looked equally rewarding despite differing by an order of magnitude. Positioned in grid padding-box coordinates, the same space the particle canvas and shatter overlay use.
 - **Star progress bar** (`src/components/StarProgress.jsx`): a filling score bar with markers at each star threshold that light up as they're passed. The tiers are calibrated to be reachable but were previously invisible — the HUD showed a bare score with no indication of what any tier required.
 - **Idle auto-hint**: after 5 seconds without input, a valid move pulses on the board. Reuses the engine's existing `findAnyValidMove()` (already present for deadlock detection); runs on a timer rather than per frame, since it evaluates every adjacent swap. Any touch clears it and restarts the countdown.
 - **Low-moves warning**: at 5 moves or fewer the move counter turns red and pulses.
@@ -96,19 +108,36 @@ This document provides a comprehensive overview of all features currently built 
 
 ## 📱 7. Mobile & Android Studio PWA Integration
 
-- **Responsive Mobile Layout**: Portrait viewport with `env(safe-area-inset-*)` padding for notched devices.
+- **Responsive Mobile Layout**: Portrait viewport with `env(safe-area-inset-*)` padding for notched devices. The board is sized from `--board-size`, a `min()` of the available width, the available height (`100dvh` minus a fixed chrome allowance, with a `100vh` fallback under `@supports`) and a 560px cap — so it is constrained by whichever axis is tighter. It previously keyed off width alone with a 480px cap and no media queries at all, which stranded ~300px of dead space beneath the booster bar on a 430×932 phone. A `.board-stage` flex region absorbs the remaining height, centring the board and pinning the booster bar to the bottom, and the HUD, star bar and booster bar all track `--board-size` so they align to the board's edges.
 - **Web App Manifest + Service Worker**: Full PWA configuration via `vite-plugin-pwa` (Workbox-generated service worker, offline precaching) enabling "Add to Home Screen" standalone app mode.
 - **Capacitor Android Integration (`capacitor.config.json`, `android/`)**: Native Android project generated and synced; ready to build into a `.apk` in Android Studio via `npx cap open android`.
 
 ---
 
-## ✅ 8. Automated Test Coverage (`src/game/board.test.js`)
+## ✅ 8. Automated Test Coverage
 
-- 30 Vitest unit tests covering match detection (all shapes), cascade/multiplier resolution, deadlock detection & reshuffle, all combo pairings (including the no-explicit-shape fallback), boosters, and Jelly Fish targeting.
+- **122 Vitest unit tests across 7 files:**
+  - `src/data/levels.test.js` (46) — level invariants: ids, thresholds, objective/layout agreement, bomb fuse sanity, theme coverage.
+  - `src/utils/particles.test.js` (9) — idle detection and the activity notification that restarts a parked render loop.
+  - `src/utils/storage.test.js` (6) — guarded persistence against both a working and a throwing `localStorage`.
+  - `src/game/board.test.js` (35) — match detection (all shapes), cascade/multiplier resolution, deadlock detection & reshuffle, all combo pairings (including the no-explicit-shape fallback), boosters, Jelly Fish targeting, and candy-bomb countdown/detonation.
+  - `src/utils/progression.test.js` (13) — completion vs. stars, unlock rules, legacy-save fallback.
+  - `src/utils/gridGeometry.test.js` (7) — cell measurement and centre math, including a case that fails against naive `width / cols`.
+  - `src/utils/announcer.test.js` (6) — banner/voice mapping parity.
 
 ---
 
-## 🎨 9. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`, `src/components/CandyShatter.jsx`)
+## ⚙️ 9. Runtime Robustness & Performance
+
+- **Guarded persistence** (`src/utils/storage.js`): every `localStorage` read and write goes through a try/catch wrapper. `setItem` throws on every call in Safari private browsing and once an origin's quota is full, and the progress write sat unguarded inside a React effect, so a browser that refuses writes would throw on each progress change. Reads at module scope in `sound.js` were equally exposed — a browser with storage blocked throws on `getItem` too, which would have failed the module import outright. Persistence is best-effort; a failed write is swallowed and play continues.
+- **Idle-gated particle rendering**: the particle canvas parks its `requestAnimationFrame` loop whenever the engine has nothing to draw, and the engine notifies subscribers on spawn to restart it. Previously the loop ran unconditionally for as long as the board was mounted — clearing and re-rendering an empty canvas 60 times a second, which on a 3× DPR phone is a 1200×1200 buffer cleared to draw nothing. Effects only fire on a match, so idle is the common case.
+- **Cancellable move timers**: the deferred callbacks in a move (sound, banner clear, busy release, outcome check) are tracked and cleared on unmount. Exiting to the map mid-cascade previously left ~5 pending timers firing `setState` against an unmounted component.
+- **Cascade-scaled pacing**: input is blocked for `min(1000, 280 + 140 × cascadeCount)` ms rather than a flat 550ms, so a plain 3-match releases in ~420ms instead of feeling sluggish, while a long cascade gets up to a second to finish animating instead of being cut off partway.
+- **No dead dependencies**: `canvas-confetti` was declared and shipped without a single import anywhere in `src/` (`SugarCrush.jsx` hand-rolls its own confetti); it has been removed.
+
+---
+
+## 🎨 10. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`, `src/components/CandyShatter.jsx`)
 
 - **HTML5 Canvas Particle Burst System**:
   - Explosive candy fragment particle bursts when tiles match.
@@ -123,18 +152,23 @@ This document provides a comprehensive overview of all features currently built 
 - **Premium 3D Candy Art**:
   - Glossy SVG candy assets with multi-layered gradients (inner top highlight, inner bottom shadow, and drop shadow).
   - Sri Lankan candy motifs (Kalu Dodol, Kavum, Kokis) built directly into the vector designs.
+  - **Candy size is derived from the measured cell** (96% of `gridMetrics.cellW/cellH`) rather than a fixed pixel value. It was hardcoded at 42px while the cell scales with board width, so the proportion drifted — 90% of the tile on a 406px board but only 75% at the 480px cap, leaving a dead ring around every candy that widened with screen size.
+- **Board surface**:
+  - **Checkerboard tile sockets**: alternating light/dark cells with an inset shadow, keyed to `(row + col)` so the pattern stays with the grid slot rather than the candy. The previous 3%-white cell background was effectively invisible, leaving candies reading as loose sprites on frosted glass instead of sitting in a grid.
+  - The board panel is a darkened purple gradient rather than 6% white, giving the candies something to read against.
+  - **Drop-in refills**: new candies enter from above the tile (`initial={{ y: -46 }}`) instead of popping in place.
 
 ---
 
-## 🌄 10. Per-Level Dynamic Background (`src/components/DynamicBackground.jsx`)
+## 🌄 11. Per-Level Dynamic Background (`src/components/DynamicBackground.jsx`)
 
-- Each of the 5 levels has its own themed backdrop, rendered on a full-screen `<canvas>` sitting behind the board (`z-index: -2`): a 3-stop linear gradient, two `screen`-blend accent glow orbs, and ~40 slowly-drifting ambient particles, all colored per level (e.g. pink/magenta for "Sugar Patch," teal/blue for "Jelly Jungle," brown/purple for "Chocolate Chasm").
-- A separate CSS-animated layer floats level-themed emoji (🍬🍭✨ for level 1, 🫧💧🪼 for level 3, etc.) slowly upward in the background.
-- Falls back to the level 1 theme for any level ID without a defined theme (currently a non-issue since all 5 levels have one).
+- Each of the 10 levels has its own themed backdrop, rendered on a full-screen `<canvas>` sitting behind the board (`z-index: -2`): a 3-stop linear gradient, two `screen`-blend accent glow orbs, and ~40 slowly-drifting ambient particles, all colored per level (e.g. pink/magenta for "Sugar Patch," teal/blue for "Jelly Jungle," icy cyan for "Peppermint Peaks," prismatic violet for the "Rainbow Summit" finale).
+- A separate CSS-animated layer floats level-themed emoji (🍬🍭✨ for level 1, 🫧💧🪼 for level 3, 🌈⭐👑 for level 10, etc.) slowly upward in the background.
+- Falls back to the level 1 theme for any level ID without a defined theme. `levels.test.js` asserts every level has its own theme whose name matches the level, so this fallback stays unreachable as levels are added.
 
 ---
 
-## 🇱🇰 11. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
+## 🇱🇰 12. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
 
 - **Colloquial Sinhala catchphrases with 3 random variants each**: 36 clips total (3 variants × 6 triggers × 2 genders), so the announcer doesn't repeat itself. Phrasing is deliberately colloquial rather than dictionary Sinhala — e.g. *"නියමයි මචං!"* / *"හොඳයි හොඳයි!"* / *"සුපිරි!"* for a plain match, *"අම්මෝ! වැඩක් නෑ කතා කරලා!"* / *"බලාගෙන! සුපිරිම සුපිරි!"* / *"මචං මේක නම් ලොකු වැඩක්!"* for the biggest combos, plus win/lose sets.
 - **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/<key>_<n>.mp3`, generated by `scripts/generate_all_voices.py` via `edge-tts`, run with `npm run voices`).
@@ -148,7 +182,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🎵 12. Procedural Background Music Engine (`src/utils/sound.js`)
+## 🎵 13. Procedural Background Music Engine (`src/utils/sound.js`)
 
 - Fully synthesized (no audio files) via Web Audio API oscillators, scheduled with a lookahead loop for drift-free timing.
 - **3 selectable rhythmic styles**, switchable live from the Settings menu and persisted to `localStorage` (`bgmStyle`):

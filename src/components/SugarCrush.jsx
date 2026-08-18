@@ -124,7 +124,7 @@ class FireworkBurst {
   }
 }
 
-export default function SugarCrush({ onComplete }) {
+export default function SugarCrush({ bonus, onComplete }) {
   const canvasRef = useRef(null);
   const [showText, setShowText] = useState(true);
   const [shaking, setShaking] = useState(true);
@@ -220,6 +220,23 @@ export default function SugarCrush({ onComplete }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Leftover moves are cashed in as bonus points. Showing the arithmetic
+          is the point — a silently larger score teaches the player nothing
+          about why finishing early was worth doing. */}
+      {bonus?.moves > 0 && (
+        <motion.div
+          className="sugar-crush-bonus"
+          initial={{ opacity: 0, y: 30, scale: 0.7 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ delay: 0.9, type: 'spring', stiffness: 220, damping: 18 }}
+        >
+          <span className="sugar-bonus-moves">
+            {bonus.moves} ඉතිරි moves
+          </span>
+          <span className="sugar-bonus-points">+{bonus.bonus.toLocaleString()}</span>
+        </motion.div>
+      )}
     </div>
   );
 }

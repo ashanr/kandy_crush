@@ -44,6 +44,41 @@ export const THEMES = {
     floaters: ['🍫', '🌑', '💜'],
     particleColor: '#c084fc',
   },
+  6: {
+    name: 'Peppermint Peaks',
+    gradient: ['#155e75', '#0e7490', '#083344'],
+    accentGlow: 'rgba(224, 242, 254, 0.16)',
+    floaters: ['❄️', '🍬', '🤍'],
+    particleColor: '#e0f2fe',
+  },
+  7: {
+    name: 'Bubblegum Bay',
+    gradient: ['#9d174d', '#831843', '#500724'],
+    accentGlow: 'rgba(244, 114, 182, 0.18)',
+    floaters: ['🫧', '💗', '🍥'],
+    particleColor: '#f472b6',
+  },
+  8: {
+    name: 'Caramel Canyon',
+    gradient: ['#78350f', '#451a03', '#2b1002'],
+    accentGlow: 'rgba(251, 191, 36, 0.16)',
+    floaters: ['🍯', '🏜️', '🟠'],
+    particleColor: '#fbbf24',
+  },
+  9: {
+    name: 'Marshmallow Marsh',
+    gradient: ['#3b0764', '#2e1065', '#1a0733'],
+    accentGlow: 'rgba(167, 139, 250, 0.16)',
+    floaters: ['☁️', '🍡', '🌫️'],
+    particleColor: '#a78bfa',
+  },
+  10: {
+    name: 'Rainbow Summit',
+    gradient: ['#4c1d95', '#1e1b4b', '#0f0a2e'],
+    accentGlow: 'rgba(103, 232, 249, 0.2)',
+    floaters: ['🌈', '⭐', '👑'],
+    particleColor: '#67e8f9',
+  },
 };
 
 const DEFAULT_THEME = THEMES[1];

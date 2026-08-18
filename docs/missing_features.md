@@ -15,7 +15,7 @@ This document details all single-player mechanics, special candies, blockers, gr
 
 ## 🧱 2. Advanced Blocker Tiles & Dynamic Hazards
 
-> **Update:** Jelly Tiles (single & double layer, cleared by matching on top of them) are already implemented — see `docs/implemented_features.md`. Everything below this note is still missing.
+> **Update:** Jelly Tiles (single & double layer, cleared by matching on top of them) and **Candy Bombs** (timed countdown hazard with a visible fuse badge, instant level failure at zero) are already implemented — see `docs/implemented_features.md`.
 
 - **Chocolate & Chocolate Spawners**:
   - **Growing Hazard**: If no chocolate block is destroyed during a turn, a chocolate block expands and consumes one adjacent candy.
@@ -26,9 +26,7 @@ This document details all single-player mechanics, special candies, blockers, gr
 - **Licorice Locks / Sugar Chains**:
   - Metal/sugar cages locking a candy in place.
   - Locked candies cannot be moved or swapped until matched with adjacent candies of the same color.
-- **Candy Bombs**:
-  - Timed bomb candies featuring a countdown timer (e.g., 10, 8, 5 moves).
-  - Countdown decreases by 1 on every turn. If any bomb reaches 0 before being matched, it results in an instant **Level Failed**!
+- **Candy Bomb spawning during play**: bombs are currently only seeded at level start (`initialBombs`). The original also spawns fresh bombs mid-level from match cascades on later stages.
 - **Waffle Layers / Multilayer Layered Cakes**:
   - 1 to 5-layer thick solid blockers occupying grid spaces.
   - Must be damaged by making adjacent matches multiple times to fully break down.
@@ -74,3 +72,15 @@ This document details all single-player mechanics, special candies, blockers, gr
   - Emergency booster offered when move counter reaches 0 to extend play by 5 additional moves.
 - **Pre-Game Equipped Boosters**:
   - Toggle menu on the Level Start screen allowing players to start the level with a free Color Bomb, Striped Candy, or Wrapped Candy pre-placed on the board.
+  - The Level Start screen itself now exists (`src/components/LevelIntro.jsx`), so this is a matter of adding the toggles and seeding the board — not of building the screen.
+
+---
+
+## 🏆 6. Scoring & End-of-Level Ritual
+
+> **Update:** the **Sugar Crush leftover-moves bonus** (300 points per unspent move, shown as arithmetic in the celebration) and **floating score popups** are now implemented — see `docs/implemented_features.md`.
+
+- **Striped-candy detonation on Sugar Crush**: the bonus is currently awarded as a flat per-move score. The original visibly converts each leftover move into a Striped Candy on the board and detonates them in sequence, which is where the spectacle comes from.
+- **Out-of-moves "+5 moves" offer**: hitting zero moves is an immediate loss. The original offers to extend play by 5 moves first.
+- **Icon-based objective HUD**: the objective shows as a text pill (`Jelly: 38`) rather than an icon of the collected item with a count.
+- **Score-driven star animation**: stars are revealed all at once on the result card rather than filling in as the score counts up.

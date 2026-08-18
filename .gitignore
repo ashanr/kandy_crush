@@ -1,6 +1,13 @@
 node_modules/
 dist/
 dist-ssr/
-android/
 *.local
 .DS_Store
+
+# Graphify
+graphify-out/
+
+# Android signing
+android/keystore.properties
+*.keystore
+*.jks

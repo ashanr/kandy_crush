@@ -35,12 +35,15 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
   - **Per-Candy Shatter Effect**: every destroyed candy is diffed out of the board and gets its own central flash + flying colored shard burst at its last position.
   - **3D SVG Candy Sprites**: Sri Lankan motifs (Kavum, Kokis) enhanced with multi-layer inner gloss, drop shadows, and intense sheen reflections.
   - **Per-Level Dynamic Backgrounds**: each level has its own animated canvas backdrop (themed gradient, glow orbs, drifting ambient particles) plus a slow-floating layer of level-themed emoji.
-- **8x8 Match-3 Board**: Supports Striped, Wrapped, Color Bomb, and Jelly Fish special candies with continuous cascading combos.
-- **Special Candy Combinations**: Striped+Striped cross beams, Striped+Wrapped 3-row mega beams, Color Bomb board clearers.
+- **8x8 Match-3 Board**: Supports Striped, Wrapped, Color Bomb, Jelly Fish, Coconut Wheel, and Lucky Candy specials with continuous cascading combos.
+- **Special Candy Combinations**: Striped+Striped cross beams, Striped+Wrapped 3-row mega beams, Color Bomb board clearers. Any pairing without a bespoke shape falls back to each special detonating individually, so a combo swap never wastes a move.
+- **Candy Bombs**: timed countdown hazards with a visible fuse badge that turns red under 3 moves; any bomb reaching zero fails the level instantly.
+- **Pre-Level Briefing**: every level opens with a card naming the objective, move budget, 3-star score, and any hazards on the board before you commit to playing.
 - **Animated Saga World Map**: Vertically scrolling layout featuring an SVG winding path, animated floating parallax clouds, glowing stars, and a golden pulsing "current level" indicator. Auto-scrolls to the player's current level on every visit instead of always opening at level 1. Level path with 1 to 3 star ratings and progress saved to `localStorage`.
-- **Level Objectives**: Score Targets, Jelly Clearing, and move limits.
+- **10 Levels Across 10 Themed Zones**: score-target and jelly-clearing objectives, five distinct jelly layouts (ring, block, checkerboard, corners, full board), and candy bombs on three levels. Targets, move limits and star thresholds are calibrated by simulating each level 250-300x through the real engine.
+- **Sugar Crush Bonus**: clearing an objective early cashes every unspent move in for bonus points, so finishing efficiently is rewarded rather than punished.
 - **In-Game Boosters**: Lollipop Hammer, Shuffle Board, and Color Bomb Generator.
-- **Colorblind Accessibility**: Shapes assigned to each candy color (red circle, green diamond, etc.).
+- **Shape-Coded Candies**: each color carries its own silhouette (red kavum dome, green dodol diamond, blue hexagon, orange rounded square, yellow kokis star, purple royal star) so color is not the only channel. Note the two star shapes remain close in outline — worth revisiting for full colorblind safety.
 - **Offline PWA & Capacitor Android APK**: Instant offline loading via Service Worker and ready for Android Studio APK compilation.
 
 ---
@@ -61,7 +64,7 @@ npm run dev       # Start dev server (add -- --host to test on your phone over W
 | `npm run dev` | Start the Vite dev server |
 | `npm run build` | Compile production build to `dist/` and generate PWA service worker |
 | `npm run preview` | Preview production build locally |
-| `npm test` | Run engine + announcer unit tests (Vitest) |
+| `npm test` | Run the 122 unit tests across engine, level data, progression, grid geometry, particles, storage, and announcer (Vitest) |
 | `npm run voices` | Regenerate all 36 Sinhala voice clips (needs Python + `pip install edge-tts`) |
 
 ---
@@ -69,7 +72,7 @@ npm run dev       # Start dev server (add -- --host to test on your phone over W
 ## 📁 Project Documentation (`docs/`)
 
 - [docs/implemented_features.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/implemented_features.md): Overview of all current game mechanics, sound engines, and PWA setup.
-- [docs/missing_features.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/missing_features.md): Single-player roadmap (Coconut Wheel, Licorice Swirls, Candy Bombs, Teleporter Portals).
+- [docs/missing_features.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/missing_features.md): Single-player roadmap (spreading chocolate, Licorice Swirls, Teleporter Portals, ingredient-drop and order modes, the out-of-moves "+5" offer).
 - [docs/improvements.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/improvements.md): Remaining polish and UX ideas (confetti, auto-hint, pre-game booster menu, level editor, APK build script) — most of the original Sri Lankan audio/visual wishlist is now shipped and documented in `implemented_features.md` instead.
 
 ---

@@ -1,3 +1,5 @@
+import { readString, writeString } from './storage.js';
+
 let audioCtx = null;
 let unlocked = false;
 
@@ -45,8 +47,8 @@ export function unlockAudio() {
 }
 
 // --- Background Music (BGM) Engine ---
-let isMuted = localStorage.getItem('bgmMuted') === 'true';
-let bgmStyle = localStorage.getItem('bgmStyle') || 'baila';
+let isMuted = readString('bgmMuted') === 'true';
+let bgmStyle = readString('bgmStyle') || 'baila';
 let bgmInterval = null;
 let nextNoteTime = 0;
 let currentBeat = 0;
@@ -82,7 +84,7 @@ export function getBGMScene() {
 
 export function toggleMute() {
   isMuted = !isMuted;
-  localStorage.setItem('bgmMuted', isMuted);
+  writeString('bgmMuted', isMuted);
   if (isMuted) {
     stopBGM();
   } else {
@@ -99,7 +101,7 @@ export function getMuteState() {
 export function setBGMStyle(style) {
   if (['baila', 'papare', 'kandyan'].includes(style)) {
     bgmStyle = style;
-    localStorage.setItem('bgmStyle', style);
+    writeString('bgmStyle', style);
     // Restart BGM to immediately apply new tempo/rhythm if playing
     if (bgmInterval) {
       stopBGM();
@@ -424,12 +426,12 @@ function unduckBGM() {
 }
 
 // Default to male voice
-let currentVoiceGender = localStorage.getItem('announcerVoice') || 'male';
+let currentVoiceGender = readString('announcerVoice') || 'male';
 
 export function setAnnouncerVoice(gender) {
   if (gender === 'male' || gender === 'female') {
     currentVoiceGender = gender;
-    localStorage.setItem('announcerVoice', gender);
+    writeString('announcerVoice', gender);
   }
 }
 

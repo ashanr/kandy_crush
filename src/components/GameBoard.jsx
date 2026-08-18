@@ -39,6 +39,7 @@ import DynamicBackground from './DynamicBackground.jsx';
 import { globalParticleEngine } from '../utils/particles.js';
 import SugarCrush from './SugarCrush.jsx';
 import StarProgress from './StarProgress.jsx';
+import ScorePopup from './ScorePopup.jsx';
 
 const ROWS = 8;
 const COLS = 8;
@@ -49,6 +50,8 @@ const DEFAULT_BOOSTERS = { hammer: 1, shuffle: 1, bomb: 1 };
 const IDLE_HINT_MS = 5000;
 // Moves remaining at which the counter starts warning.
 const LOW_MOVES = 5;
+// Points awarded per unspent move when the objective is cleared early.
+const SUGAR_CRUSH_BONUS_PER_MOVE = 300;
 
 function pickComboSound(specialTypes) {
   if (specialTypes.length === 0) return null;
@@ -75,6 +78,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const dragStart = useRef(null);
   const outcomeSignaled = useRef(false);
   const [shatters, setShatters] = useState([]);
+  const [popups, setPopups] = useState([]);
   const [gridMetrics, setGridMetrics] = useState(null);
 
   // Keep board geometry in sync with the responsive grid. Without this the
@@ -95,6 +99,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     return () => observer.disconnect();
   }, []);
   const [sugarCrushActive, setSugarCrushActive] = useState(false);
+  const [sugarCrushBonus, setSugarCrushBonus] = useState(null);
   const pendingWinScore = useRef(null);
   const [hint, setHint] = useState(null);
   const [activityTick, setActivityTick] = useState(0);
@@ -151,6 +156,24 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
   const registerActivity = useCallback(() => setActivityTick((t) => t + 1), []);
 
+  // Every deferred callback in a move goes through here so it can be cancelled
+  // on unmount. Exiting to the map mid-cascade previously left ~5 pending
+  // timers that fired setState against an unmounted component.
+  const timers = useRef([]);
+  const later = useCallback((fn, ms) => {
+    const id = window.setTimeout(() => {
+      timers.current = timers.current.filter((t) => t !== id);
+      fn();
+    }, ms);
+    timers.current.push(id);
+    return id;
+  }, []);
+
+  useEffect(() => () => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current = [];
+  }, []);
+
   const jellyRemaining = jellyGrid.flat().reduce((sum, v) => sum + v, 0);
 
   const handleSugarCrushDone = useCallback(() => {
@@ -169,22 +192,35 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         outcomeSignaled.current = true;
         playSinhalaLose();
         setMessage('Bomb Exploded! 💣');
-        onLose?.(nextScore);
+        // Reason distinguishes this from running out of moves — the result
+        // modal would otherwise claim "Moves ඉවරයි" on a bomb loss.
+        onLose?.(nextScore, 'bomb');
         return;
       }
 
       const jellyLeft = nextJelly.flat().reduce((sum, v) => sum + v, 0);
 
-      const win = () => {
+      // Sugar Crush: every unspent move is cashed in, mirroring the original's
+      // habit of converting leftover moves into striped candies and detonating
+      // them. Without it, jelly levels actively punished good play — clearing
+      // the objective early ends the level and starves the score, so the
+      // star-maximising strategy was to stall on the objective rather than
+      // pursue it. Score levels win with 0 moves left and so bank no bonus.
+      const win = (movesRemaining) => {
         outcomeSignaled.current = true;
         playSinhalaWin();
-        pendingWinScore.current = nextScore;
+        const leftover = Math.max(0, movesRemaining);
+        const bonus = leftover * SUGAR_CRUSH_BONUS_PER_MOVE;
+        const finalScore = nextScore + bonus;
+        setSugarCrushBonus({ moves: leftover, bonus });
+        setScore(finalScore);
+        pendingWinScore.current = finalScore;
         setSugarCrushActive(true);
       };
 
       // Jelly levels end the moment the objective is met — that IS the goal.
       if (level.objective.type === 'jelly' && jellyLeft === 0) {
-        win();
+        win(nextMoves);
         return;
       }
 
@@ -195,7 +231,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       // was 1,160 when it ended early vs 6,360 played out).
       if (nextMoves <= 0) {
         if (level.objective.type === 'score' && nextScore >= level.objective.target) {
-          win();
+          win(nextMoves);
           return;
         }
         outcomeSignaled.current = true;
@@ -251,7 +287,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         // Shake the pair so a rejected swap reads as "not legal" rather than
         // as a dropped input. Duration matches the reject-shake keyframes.
         setRejected([posA, posB]);
-        window.setTimeout(() => setRejected(null), 320);
+        later(() => setRejected(null), 320);
         return;
       }
       setBusy(true);
@@ -292,18 +328,28 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       const comboSound = pickComboSound(specialTypes);
       if (comboSound) {
-        window.setTimeout(() => {
+        later(() => {
           comboSound();
           haptics.combo();
         }, 120);
       } else if (result.cascadeCount > 1) {
-        window.setTimeout(() => {
+        later(() => {
           playCombo(result.cascadeCount);
           haptics.combo();
         }, 150);
       } else {
         playPop();
         haptics.match();
+      }
+
+      // Float the points earned off the swap so the number is attached to the
+      // move that produced it.
+      if (result.score > 0 && gridMetrics) {
+        const { x, y } = cellCenter(gridMetrics, posA[0], posA[1]);
+        setPopups((prev) => [
+          ...prev,
+          { id: `pop-${Date.now()}-${Math.random()}`, x, y, points: result.score, big: result.score >= 500 },
+        ]);
       }
 
       const { board: playableBoard, reshuffled } = ensurePlayable(result.board);
@@ -317,13 +363,19 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       setSelected(null);
       if (reshuffled) setMessage('මාරු වෙනවා...');
 
-      window.setTimeout(() => {
+      // Input was previously blocked for a flat 550ms on every move, so a plain
+      // 3-match felt sluggish while a six-step cascade got cut off partway
+      // through its animation. Scale the settle time to how much actually
+      // happened: ~420ms for a single match, capped at 1s for long cascades.
+      const settleMs = Math.min(1000, 280 + result.cascadeCount * 140);
+
+      later(() => {
         setMessage(null);
         setBusy(false);
         checkOutcome(nextScore, nextMoves, result.jellyGrid, result.bombExploded);
-      }, 550);
+      }, settleMs);
     },
-    [board, jellyGrid, score, movesLeft, busy, checkOutcome, triggerFX],
+    [board, jellyGrid, score, movesLeft, busy, checkOutcome, triggerFX, gridMetrics, later],
   );
 
   const applyBooster = useCallback(
@@ -348,12 +400,12 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       if (result.jellyGrid) setJellyGrid(result.jellyGrid);
       setScore(nextScore);
 
-      window.setTimeout(() => {
+      later(() => {
         setBusy(false);
         checkOutcome(nextScore, movesLeft, nextJelly, result.bombExploded);
       }, 400);
     },
-    [board, jellyGrid, boosterCounts, busy, score, movesLeft, checkOutcome],
+    [board, jellyGrid, boosterCounts, busy, score, movesLeft, checkOutcome, later],
   );
 
   const handleCellTap = (r, c) => {
@@ -463,7 +515,15 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
                     whileTap={{ scale: 0.9, rotate: -5 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                   >
-                    <CandySprite color={cell.color} special={cell.special} size={candySize} />
+                    {/* bombTimer must be forwarded: the engine ticks it down and
+                        ends the level at zero, so without it the countdown UI in
+                        CandySprite never renders and the loss has no visible cause. */}
+                    <CandySprite
+                      color={cell.color}
+                      special={cell.special}
+                      bombTimer={cell.bombTimer}
+                      size={candySize}
+                    />
                   </motion.div>
                 </div>
               )),
@@ -484,6 +544,17 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
               />
             );
           })}
+
+          {popups.map((p) => (
+            <ScorePopup
+              key={p.id}
+              x={p.x}
+              y={p.y}
+              points={p.points}
+              big={p.big}
+              onComplete={() => setPopups((prev) => prev.filter((item) => item.id !== p.id))}
+            />
+          ))}
         </div>
       </div>
 
@@ -497,7 +568,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       {/* Sugar Crush Win Celebration */}
       {sugarCrushActive && (
-        <SugarCrush onComplete={handleSugarCrushDone} />
+        <SugarCrush bonus={sugarCrushBonus} onComplete={handleSugarCrushDone} />
       )}
     </div>
   );

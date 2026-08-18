@@ -6,6 +6,7 @@ export class ParticleEngine {
     this.lasers = [];
     this.lightningArcs = [];
     this.shockwaves = [];
+    this.listeners = new Set();
   }
 
   // Clear all active effects
@@ -14,6 +15,30 @@ export class ParticleEngine {
     this.lasers = [];
     this.lightningArcs = [];
     this.shockwaves = [];
+  }
+
+  /** True when there is nothing left to draw. */
+  isIdle() {
+    return (
+      this.particles.length === 0
+      && this.lasers.length === 0
+      && this.lightningArcs.length === 0
+      && this.shockwaves.length === 0
+    );
+  }
+
+  /**
+   * Notified whenever effects are spawned, so a renderer can keep its
+   * animation loop parked while the engine is idle — which is most of the
+   * time, since effects only fire on a match. Returns an unsubscribe fn.
+   */
+  onActivity(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  notifyActivity() {
+    this.listeners.forEach((fn) => fn());
   }
 
   // 1. Spawn candy shard burst on match
@@ -35,6 +60,7 @@ export class ParticleEngine {
         shape: Math.random() > 0.5 ? 'circle' : 'star',
       });
     }
+    this.notifyActivity();
   }
 
   // 2. Spawn Striped Candy Laser Beam
@@ -75,6 +101,7 @@ export class ParticleEngine {
         shape: 'spark',
       });
     }
+    this.notifyActivity();
   }
 
   // 3. Spawn Color Bomb Electric Lightning Arcs
@@ -92,6 +119,7 @@ export class ParticleEngine {
         segments: this.generateLightningPath(startX, startY, target.x, target.y),
       });
     });
+    this.notifyActivity();
   }
 
   // Helper to generate procedural zig-zag lightning points with branching
@@ -138,6 +166,7 @@ export class ParticleEngine {
       lineWidth: 6,
     });
     this.spawnMatchBurst(x, y, color, 30); // More particles!
+    this.notifyActivity();
   }
 
   // Update particle physics frame

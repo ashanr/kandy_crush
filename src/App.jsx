@@ -1,28 +1,26 @@
 import { useEffect, useState } from 'react';
 import SagaMap from './components/SagaMap.jsx';
 import GameBoard from './components/GameBoard.jsx';
+import LevelIntro from './components/LevelIntro.jsx';
 import { computeStars, recordWin } from './utils/progression.js';
 import { setBGMScene } from './utils/sound.js';
+import { readJSON, writeJSON } from './utils/storage.js';
 
 const STORAGE_KEY = 'candy-saga-progress';
 
 function loadProgress() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return readJSON(STORAGE_KEY, {});
 }
 
 export default function App() {
   const [progress, setProgress] = useState(loadProgress);
+  const [pendingLevel, setPendingLevel] = useState(null);
   const [activeLevel, setActiveLevel] = useState(null);
   const [result, setResult] = useState(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    writeJSON(STORAGE_KEY, progress);
   }, [progress]);
 
   // Energetic percussion belongs to the map; the board gets a quiet melodic
@@ -38,8 +36,14 @@ export default function App() {
     setResult({ outcome: 'win', score, stars: computeStars(activeLevel, score) });
   };
 
-  const handleLose = (score) => {
-    setResult({ outcome: 'lose', score });
+  const handleLose = (score, reason = 'moves') => {
+    setResult({ outcome: 'lose', score, reason });
+  };
+
+  // The map hands off to the briefing card, which hands off to the board.
+  const startPendingLevel = () => {
+    setActiveLevel(pendingLevel);
+    setPendingLevel(null);
   };
 
   const closeResult = () => {
@@ -68,7 +72,13 @@ export default function App() {
         {result && (
           <div className="result-modal">
             <div className="result-card">
-              <h2>{result.outcome === 'win' ? 'දින්නා! 🎉' : 'අයියෝ! Moves ඉවරයි 😢'}</h2>
+              <h2>
+                {result.outcome === 'win'
+                  ? 'දින්නා! 🎉'
+                  : result.reason === 'bomb'
+                    ? 'බෝම්බය පිපිරුණා! 💣'
+                    : 'අයියෝ! Moves ඉවරයි 😢'}
+              </h2>
               <p>ලකුණු (Score): {result.score}</p>
               {result.outcome === 'win' && (
                 <div className="result-stars">
@@ -91,5 +101,16 @@ export default function App() {
     );
   }
 
-  return <SagaMap progress={progress} onSelectLevel={setActiveLevel} />;
+  return (
+    <>
+      <SagaMap progress={progress} onSelectLevel={setPendingLevel} />
+      {pendingLevel && (
+        <LevelIntro
+          level={pendingLevel}
+          onStart={startPendingLevel}
+          onCancel={() => setPendingLevel(null)}
+        />
+      )}
+    </>
+  );
 }

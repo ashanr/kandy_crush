@@ -25,18 +25,41 @@ export default function ParticleCanvas({ width, height }) {
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    let animationFrameId;
+    // The loop only runs while the engine actually has something to draw.
+    // It used to run unconditionally for as long as the board was mounted,
+    // clearing and re-rendering an empty canvas 60 times a second — on a 3x
+    // DPR phone that is a 1200x1200 buffer being cleared to draw nothing, for
+    // the entire time the player is looking at the board. Effects only fire on
+    // a match, so the idle case is the common one.
+    let animationFrameId = null;
+
     const renderLoop = () => {
       // Clear in CSS-pixel space — the transform above already maps to the
       // scaled buffer.
       ctx.clearRect(0, 0, width, height);
       globalParticleEngine.update();
       globalParticleEngine.render(ctx);
+
+      if (globalParticleEngine.isIdle()) {
+        // Last effect just expired. The clear above already wiped the frame,
+        // so park until something new spawns.
+        animationFrameId = null;
+        return;
+      }
       animationFrameId = requestAnimationFrame(renderLoop);
     };
-    renderLoop();
 
-    return () => cancelAnimationFrame(animationFrameId);
+    const start = () => {
+      if (animationFrameId === null) animationFrameId = requestAnimationFrame(renderLoop);
+    };
+
+    const unsubscribe = globalParticleEngine.onActivity(start);
+    if (!globalParticleEngine.isIdle()) start();
+
+    return () => {
+      unsubscribe();
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    };
   }, [width, height]);
 
   return (
