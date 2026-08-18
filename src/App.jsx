@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SagaMap from './components/SagaMap.jsx';
 import GameBoard from './components/GameBoard.jsx';
 import { computeStars, recordWin } from './utils/progression.js';
+import { setBGMScene } from './utils/sound.js';
 
 const STORAGE_KEY = 'candy-saga-progress';
 
@@ -18,10 +19,17 @@ export default function App() {
   const [progress, setProgress] = useState(loadProgress);
   const [activeLevel, setActiveLevel] = useState(null);
   const [result, setResult] = useState(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
   }, [progress]);
+
+  // Energetic percussion belongs to the map; the board gets a quiet melodic
+  // bed so it doesn't fight the match/combo effects and announcer voice.
+  useEffect(() => {
+    setBGMScene(activeLevel ? 'game' : 'map');
+  }, [activeLevel]);
 
   const handleWin = (score) => {
     // Clearing the level always records completion, independent of how many
@@ -39,10 +47,19 @@ export default function App() {
     setActiveLevel(null);
   };
 
+  // Replay the same level without a round-trip to the map. GameBoard resets its
+  // state from the `level` prop, which is unchanged here, so bump a key to force
+  // a fresh mount.
+  const retryLevel = () => {
+    setResult(null);
+    setAttempt((n) => n + 1);
+  };
+
   if (activeLevel) {
     return (
       <>
         <GameBoard
+          key={`${activeLevel.id}-${attempt}`}
           level={activeLevel}
           onWin={handleWin}
           onLose={handleLose}
@@ -59,7 +76,14 @@ export default function App() {
                   {'☆'.repeat(3 - result.stars)}
                 </div>
               )}
-              <button type="button" onClick={closeResult}>ඉදිරියට (Continue)</button>
+              <div className="result-actions">
+                <button type="button" onClick={retryLevel} className="result-retry">
+                  නැවත (Retry)
+                </button>
+                <button type="button" onClick={closeResult}>
+                  {result.outcome === 'win' ? 'ඉදිරියට (Continue)' : 'සිතියම (Map)'}
+                </button>
+              </div>
             </div>
           </div>
         )}

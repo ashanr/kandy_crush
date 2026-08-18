@@ -51,6 +51,35 @@ let bgmInterval = null;
 let nextNoteTime = 0;
 let currentBeat = 0;
 
+// Which screen the music is scoring. The map gets the energetic Sri Lankan
+// percussion styles; gameplay gets a soft melodic bed instead.
+//
+// The drum styles are percussion-forward (kick sits at gain 0.5, well above the
+// 0.12–0.25 of the sound effects) on a short 8-step loop. On the map nothing
+// competes with that and it reads as energetic, but during play it stacks
+// underneath pops, lasers, explosions and the announcer voice — one cascade can
+// fire all four at once. Real match-3 games keep the drums for menus and put a
+// quiet melodic bed under the board, which is what 'game' does here.
+let bgmScene = 'map';
+
+// Gameplay music also sits lower in the mix so effects and voice lead.
+const SCENE_VOLUME = { map: 1, game: 0.55 };
+
+export function setBGMScene(scene) {
+  if (scene !== 'map' && scene !== 'game') return;
+  if (bgmScene === scene) return;
+  bgmScene = scene;
+  // Restart so the new pattern begins on a clean phrase rather than mid-bar.
+  if (bgmInterval) {
+    stopBGM();
+    startBGM();
+  }
+}
+
+export function getBGMScene() {
+  return bgmScene;
+}
+
 export function toggleMute() {
   isMuted = !isMuted;
   localStorage.setItem('bgmMuted', isMuted);
@@ -115,19 +144,73 @@ function playSynth(time, freq, type = 'sawtooth', duration, vol = 0.08) {
   const gain = ctx.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(vol, time);
+  gain.gain.setValueAtTime(vol * (SCENE_VOLUME[bgmScene] ?? 1), time);
   gain.gain.linearRampToValueAtTime(0.01, time + duration);
   osc.connect(gain).connect(getBgmGain());
   osc.start(time);
   osc.stop(time + duration);
 }
 
+// Soft-attack tone for the gameplay bed. The percussion helpers above start at
+// full gain instantly, which is what gives them their punch — exactly the wrong
+// character for music meant to sit unnoticed behind the board.
+function playSoft(time, freq, duration, vol, type = 'sine') {
+  const ctx = getContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const peak = Math.max(0.0002, vol * (SCENE_VOLUME[bgmScene] ?? 1));
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, time);
+  // Exponential ramps can never reach 0, hence the tiny floor values.
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(peak, time + Math.min(0.12, duration * 0.3));
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+  osc.connect(gain).connect(getBgmGain());
+  osc.start(time);
+  osc.stop(time + duration + 0.02);
+}
+
+// 16-step pentatonic phrase at a relaxed tempo. Deliberately sparse and twice
+// the length of the drum loops so it reads as ambient rather than looping at
+// the player.
+const CALM_TEMPO = 96;
+const CALM_ARP = [
+  261.63, 0, 0, 329.63, 0, 0, 392.00, 0,
+  440.00, 0, 0, 392.00, 0, 0, 329.63, 0,
+];
+// Low pad roots, one per half-phrase.
+const CALM_PAD = { 0: 130.81, 8: 110.00 };
+
+function scheduleCalmStep(time, step, stepDuration) {
+  const note = CALM_ARP[step];
+  if (note > 0) {
+    playSoft(time, note, stepDuration * 2.2, 0.045, 'sine');
+  }
+  const padRoot = CALM_PAD[step];
+  if (padRoot) {
+    playSoft(time, padRoot, stepDuration * 7, 0.03, 'triangle');
+  }
+  // A single high shimmer once per phrase keeps it from feeling static.
+  if (step === 6) {
+    playSoft(time, 1046.50, stepDuration * 3, 0.012, 'sine');
+  }
+}
+
 function scheduleBGM() {
   const ctx = getContext();
   while (nextNoteTime < ctx.currentTime + 0.1) {
+    // Gameplay: quiet melodic bed, no percussion.
+    if (bgmScene === 'game') {
+      const stepDuration = (60.0 / CALM_TEMPO) / 2;
+      scheduleCalmStep(nextNoteTime, currentBeat % CALM_ARP.length, stepDuration);
+      nextNoteTime += stepDuration;
+      currentBeat += 1;
+      continue;
+    }
+
     const beat = currentBeat % 8;
     let secondsPerBeat = 60.0 / 140; // Default Baila tempo
-    
+
     if (bgmStyle === 'baila') {
       secondsPerBeat = 60.0 / 140; // 140 BPM
       if (beat === 0 || beat === 3 || beat === 4) playKick(nextNoteTime);

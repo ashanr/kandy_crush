@@ -8,6 +8,7 @@ import {
   useHammerBooster,
   useShuffleBooster,
   useColorBombBooster,
+  findAnyValidMove,
   SPECIAL,
 } from '../game/board.js';
 import {
@@ -37,11 +38,17 @@ import ParticleCanvas from './ParticleCanvas.jsx';
 import DynamicBackground from './DynamicBackground.jsx';
 import { globalParticleEngine } from '../utils/particles.js';
 import SugarCrush from './SugarCrush.jsx';
+import StarProgress from './StarProgress.jsx';
 
 const ROWS = 8;
 const COLS = 8;
 
 const DEFAULT_BOOSTERS = { hammer: 1, shuffle: 1, bomb: 1 };
+
+// Idle time before the board suggests a move.
+const IDLE_HINT_MS = 5000;
+// Moves remaining at which the counter starts warning.
+const LOW_MOVES = 5;
 
 function pickComboSound(specialTypes) {
   if (specialTypes.length === 0) return null;
@@ -89,6 +96,8 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   }, []);
   const [sugarCrushActive, setSugarCrushActive] = useState(false);
   const pendingWinScore = useRef(null);
+  const [hint, setHint] = useState(null);
+  const [activityTick, setActivityTick] = useState(0);
 
   useEffect(() => {
     const initialJelly = level.jellyLayout ? level.jellyLayout.map((row) => row.slice()) : createEmptyJellyGrid(ROWS, COLS);
@@ -99,8 +108,24 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     setSelected(null);
     setBoosterCounts(DEFAULT_BOOSTERS);
     setActiveBooster(null);
+    setHint(null);
     outcomeSignaled.current = false;
   }, [level]);
+
+  // Nudge the player toward a legal move after a spell of inactivity. The
+  // search itself already exists for deadlock detection, so this is purely
+  // surfacing it. Runs on a timer rather than per-frame — it evaluates every
+  // adjacent swap on the board, which is far too heavy to do continuously.
+  useEffect(() => {
+    setHint(null);
+    if (!board || busy || sugarCrushActive) return undefined;
+    const timer = window.setTimeout(() => {
+      setHint(findAnyValidMove(board));
+    }, IDLE_HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [board, busy, sugarCrushActive, activityTick]);
+
+  const registerActivity = useCallback(() => setActivityTick((t) => t + 1), []);
 
   const jellyRemaining = jellyGrid.flat().reduce((sum, v) => sum + v, 0);
 
@@ -321,6 +346,8 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const handlePointerDown = (r, c, e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStart.current = { r, c, x: e.clientX, y: e.clientY };
+    // Any touch counts as engagement — restart the idle countdown.
+    registerActivity();
   };
 
   const handlePointerUp = (e) => {
@@ -359,9 +386,13 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
           Score: {score}
           {level.objective.type === 'score' ? ` / ${level.objective.target}` : ''}
         </div>
-        <div className="hud-stat">Moves: {movesLeft}</div>
+        <div className={`hud-stat ${movesLeft <= LOW_MOVES ? 'low-moves' : ''}`}>
+          Moves: {movesLeft}
+        </div>
         {level.objective.type === 'jelly' && <div className="hud-stat">Jelly: {jellyRemaining}</div>}
       </div>
+
+      <StarProgress score={score} thresholds={level.starThresholds} />
 
       <div
         ref={gridRef}
@@ -374,7 +405,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
             row.map((cell, c) => (
               <div
                 key={cell.id}
-                className={`candy-cell ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''}`}
+                className={`candy-cell ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''} ${hint && hint.some(([hr, hc]) => hr === r && hc === c) ? 'hint' : ''}`}
                 onPointerDown={(e) => handlePointerDown(r, c, e)}
                 onPointerUp={handlePointerUp}
               >

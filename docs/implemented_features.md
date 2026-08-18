@@ -50,7 +50,7 @@ This document provides a comprehensive overview of all features currently built 
 - **Accessible level nodes**: each node carries an `aria-label` conveying level number, name, star count, and lock state.
 - **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
 - **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
-- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 10 & 11).
+- **Settings Menu**: modal with announcer voice gender toggle, background music style toggle, and a mute toggle (see sections 11 & 12).
 - **Persistent Progress**: Progress, best scores, and star counts are automatically saved in local browser storage (`localStorage`).
 - **Jelly Tiles (Single & Double Layer)** (`src/data/levels.js`, `src/components/GameBoard.jsx`): Translucent background tiles underneath candies, tracked independently of the candy grid so they stay attached to a board position through gravity. Cleared by matching/detonating a candy on top of them — 1 hit for single-layer, 2 for double-layer.
 - **Jelly Clearing Mode**: A level objective type (`objective.type === 'jelly'`) that requires clearing all jelly within the move limit, distinct from score-target levels. Used by "Jelly Jungle" (ring layout) and "Chocolate Chasm" (block layout).
@@ -60,7 +60,16 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🔨 4. In-Game Boosters (`src/components/BoosterBar.jsx`)
+## 🧭 4. In-Game UX Aids
+
+- **Star progress bar** (`src/components/StarProgress.jsx`): a filling score bar with markers at each star threshold that light up as they're passed. The tiers are calibrated to be reachable but were previously invisible — the HUD showed a bare score with no indication of what any tier required.
+- **Idle auto-hint**: after 5 seconds without input, a valid move pulses on the board. Reuses the engine's existing `findAnyValidMove()` (already present for deadlock detection); runs on a timer rather than per frame, since it evaluates every adjacent swap. Any touch clears it and restarts the countdown.
+- **Low-moves warning**: at 5 moves or fewer the move counter turns red and pulses.
+- **Retry without leaving the level**: the result modal offers Retry alongside Continue/Map, remounting the board via an attempt key instead of forcing a round-trip through the saga map.
+
+---
+
+## 🔨 5. In-Game Boosters (`src/components/BoosterBar.jsx`)
 
 - **Lollipop Hammer**: Allows players to select and instantly smash any single candy on the board (plain clear, no chain detonation even if it hits a special).
 - **Shuffle Board**: Manually reshuffles all candies on the board when stuck.
@@ -68,7 +77,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🔊 5. Audio & Haptics Engine (`src/utils/sound.js`, `src/utils/haptics.js`)
+## 🔊 6. Audio & Haptics Engine (`src/utils/sound.js`, `src/utils/haptics.js`)
 
 - **Web Audio API Synthesizer**: Zero external audio downloads required; synthesizes real-time sound effects, unlocked on the first user tap (mobile autoplay policy compliance):
   - Match pop sound, with an ascending-pitch combo sound on multi-cascade streaks.
@@ -80,7 +89,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 📱 6. Mobile & Android Studio PWA Integration
+## 📱 7. Mobile & Android Studio PWA Integration
 
 - **Responsive Mobile Layout**: Portrait viewport with `env(safe-area-inset-*)` padding for notched devices.
 - **Web App Manifest + Service Worker**: Full PWA configuration via `vite-plugin-pwa` (Workbox-generated service worker, offline precaching) enabling "Add to Home Screen" standalone app mode.
@@ -88,13 +97,13 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## ✅ 7. Automated Test Coverage (`src/game/board.test.js`)
+## ✅ 8. Automated Test Coverage (`src/game/board.test.js`)
 
 - 30 Vitest unit tests covering match detection (all shapes), cascade/multiplier resolution, deadlock detection & reshuffle, all combo pairings (including the no-explicit-shape fallback), boosters, and Jelly Fish targeting.
 
 ---
 
-## 🎨 8. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`, `src/components/CandyShatter.jsx`)
+## 🎨 9. Visual & Animation Enhancements (`src/utils/particles.js`, `src/components/CandySprite.jsx`, `src/components/CandyShatter.jsx`)
 
 - **HTML5 Canvas Particle Burst System**:
   - Explosive candy fragment particle bursts when tiles match.
@@ -112,7 +121,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🌄 9. Per-Level Dynamic Background (`src/components/DynamicBackground.jsx`)
+## 🌄 10. Per-Level Dynamic Background (`src/components/DynamicBackground.jsx`)
 
 - Each of the 5 levels has its own themed backdrop, rendered on a full-screen `<canvas>` sitting behind the board (`z-index: -2`): a 3-stop linear gradient, two `screen`-blend accent glow orbs, and ~40 slowly-drifting ambient particles, all colored per level (e.g. pink/magenta for "Sugar Patch," teal/blue for "Jelly Jungle," brown/purple for "Chocolate Chasm").
 - A separate CSS-animated layer floats level-themed emoji (🍬🍭✨ for level 1, 🫧💧🪼 for level 3, etc.) slowly upward in the background.
@@ -120,7 +129,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🇱🇰 10. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
+## 🇱🇰 11. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
 
 - **Colloquial Sinhala catchphrases with 3 random variants each**: 36 clips total (3 variants × 6 triggers × 2 genders), so the announcer doesn't repeat itself. Phrasing is deliberately colloquial rather than dictionary Sinhala — e.g. *"නියමයි මචං!"* / *"හොඳයි හොඳයි!"* / *"සුපිරි!"* for a plain match, *"අම්මෝ! වැඩක් නෑ කතා කරලා!"* / *"බලාගෙන! සුපිරිම සුපිරි!"* / *"මචං මේක නම් ලොකු වැඩක්!"* for the biggest combos, plus win/lose sets.
 - **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/<key>_<n>.mp3`, generated by `scripts/generate_all_voices.py` via `edge-tts`, run with `npm run voices`).
@@ -134,12 +143,13 @@ This document provides a comprehensive overview of all features currently built 
 
 ---
 
-## 🎵 11. Procedural Background Music Engine (`src/utils/sound.js`)
+## 🎵 12. Procedural Background Music Engine (`src/utils/sound.js`)
 
 - Fully synthesized (no audio files) via Web Audio API oscillators, scheduled with a lookahead loop for drift-free timing.
 - **3 selectable rhythmic styles**, switchable live from the Settings menu and persisted to `localStorage` (`bgmStyle`):
   - **Baila**: 140 BPM, sawtooth bassline.
   - **Papare**: 160 BPM, square-wave "trumpet" melody with fast snare rolls.
   - **Kandyan (Getabera)**: 120 BPM, low toms + high-pitched strikes.
+- **Per-screen scoring (map vs gameplay)**: the map keeps the energetic percussion styles above; the game board switches to a separate quiet melodic bed — a sparse 16-step pentatonic arpeggio with a soft pad, no kick or snare, soft-attack tones, and an overall level of 0.55. The drum styles are percussion-forward (kick sits at gain 0.5 against sound effects at 0.12–0.25) on a short ~2s loop, which reads as energetic on the map where nothing competes, but during play stacked underneath pops, lasers, explosions and the announcer voice all firing at once. Gameplay music now peaks around 0.025, roughly 6–10× *below* the effects, so it sits under them as a bed instead of over them.
 - **Mute toggle**: persisted to `localStorage` (`bgmMuted`), accessible from both the Saga Map header button and the Settings menu; BGM auto-starts on the first unlocked user gesture if not muted.
 - **Master bus + voice ducking**: all three BGM generators (kick/snare/synth) route through a shared `bgmGain` node instead of connecting straight to `ctx.destination`. While an announcer clip plays, that bus smoothly ducks to 40% and restores afterwards, so the voice always cuts through the Baila/Papare drums. Ducking is refcounted, so overlapping clips can't un-duck the music early, with a timeout backstop in case `onended` never fires (e.g. tab backgrounded mid-clip).
