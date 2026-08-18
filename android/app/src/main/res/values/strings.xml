@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Kandy Crush</string>
-    <string name="title_activity_main">Kandy Crush</string>
+    <string name="app_name">Candy Saga (සීනි කැට රාජධානිය)</string>
+    <string name="title_activity_main">Candy Saga</string>
     <string name="package_name">app.kandy.crush</string>
     <string name="custom_url_scheme">app.kandy.crush</string>
 </resources>

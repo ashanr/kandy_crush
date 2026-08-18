@@ -73,140 +73,149 @@ function locksAt(rows, cols, positions) {
   return layout;
 }
 
-// Targets and star thresholds are calibrated against simulated play through the
-// real engine (a greedy, objective- and bomb-aware bot over 250 runs per level),
-// so each tier actually falls inside the achievable score band. Thresholds are
-// the p15/p50/p85 of winning runs, rounded to the nearest 100:
+// Balance is calibrated against a REALISTIC player, not a solver.
 //
-// Measured star distribution over winning runs (300 runs/level):
+// Every earlier pass tuned these numbers against a bot that evaluates all ~112
+// legal swaps each move and takes the best one. That is not a player, and
+// tuning to it produced a game where level 1 was won 95% of the time by the bot
+// and 29% of the time by someone scanning four candidate moves. Level 4 was 5%.
 //
-//   lvl  type   win%   1★   2★   3★    thresholds
-//   1    score   93%  48%  36%  15%    4000/6500/8500
-//   2    score   94%  55%  33%  12%    4800/7400/9600
-//   3    jelly   85%  48%  34%  17%    3200/5900/7300
-//   4    score   67%  46%  32%  21%    5600/7100/8700
-//   5    jelly   84%  43%  42%  14%    1700/3800/4900
-//   6    score   76%  56%  37%   7%    5400/7400/9600
-//   7    jelly   80%  51%  30%  18%    2200/5000/6100
-//   8    score   69%  47%  40%  13%    5600/7400/9200
-//   9    jelly   55%  50%  38%  10%    3500/6500/8200
-//   10   jelly   65%  57%  35%   8%    2400/5500/6900
+// The reference players below only *notice* k candidate swaps before
+// committing, which is the real constraint when you look at a board:
+//   casual    = sees 4     attentive = sees 8
 //
-// The 1-star tier is deliberately set below the win floor on every level, so
-// clearing an objective can never award zero stars — score levels pin it to the
-// objective target (the target IS the pass line), jelly levels sit under the
-// p10 of winning scores. An earlier pass placed it at the p15 and produced
-// 0-star wins on 10–16% of every jelly level.
+// Measured over 100 runs/level with the shipped values:
 //
-// Jelly-level scores are no longer far below score levels — the Sugar Crush
-// leftover-moves bonus (300/move) compensates for ending early, which is what
-// removed the old incentive to stall on the objective to farm points.
+//   lvl  name                casual  attentive
+//   1    Sugar Patch            91%       100%
+//   2    Gumdrop Grove          76%        99%
+//   3    Jelly Jungle           67%        83%
+//   4    Lollipop Lane          64%        96%
+//   5    Chocolate Chasm        57%        80%
+//   6    Peppermint Peaks       62%        93%
+//   7    Bubblegum Bay          72%        88%
+//   8    Caramel Canyon         46%        86%
+//   9    Marshmallow Marsh      37%        71%   <- hardest by design
+//   10   Rainbow Summit         50%        81%
+//   11   Cocoa Quarry           60%        78%
+//
+// Score targets sit BELOW the p20 of what an attentive player actually scores,
+// so clearing is the normal outcome rather than the ceiling. Star thresholds
+// come from the same realistic distribution (roughly p05/p50/p85 of winning
+// runs), and the 1-star tier is pinned at or under the win floor on every
+// level — on score levels it equals the target, since the target IS the pass
+// line and clearing must always be worth at least one star.
+//
+// Jelly levels are tuned by move limit rather than by target. The Sugar Crush
+// leftover-moves bonus (300/move) is what keeps their scores comparable to
+// score levels despite ending the moment the objective is met.
+
 export const LEVELS = [
   {
     id: 1,
     name: 'Sugar Patch',
-    objective: { type: 'score', target: 4000 },
+    objective: { type: 'score', target: 2400 },
     moveLimit: 20,
     jellyLayout: null,
-    starThresholds: [4000, 6500, 8500],
+    starThresholds: [2400, 5000, 6500],
   },
   {
     id: 2,
     name: 'Gumdrop Grove',
-    objective: { type: 'score', target: 4800 },
+    objective: { type: 'score', target: 3000 },
     moveLimit: 22,
     jellyLayout: null,
-    starThresholds: [4800, 7400, 9600],
+    starThresholds: [3000, 5400, 6700],
   },
   {
     id: 3,
     name: 'Jelly Jungle',
     objective: { type: 'jelly' },
-    moveLimit: 24,
+    moveLimit: 27,
     jellyLayout: buildJellyRing(8, 8, 1),
-    starThresholds: [3200, 5900, 7300],
+    starThresholds: [3900, 6000, 7200],
   },
   {
     id: 4,
     name: 'Lollipop Lane',
-    objective: { type: 'score', target: 5600 },
+    objective: { type: 'score', target: 3000 },
     moveLimit: 20,
     jellyLayout: null,
-    starThresholds: [5600, 7100, 8700],
+    starThresholds: [3000, 5100, 6100],
   },
   {
     id: 5,
     name: 'Chocolate Chasm',
     objective: { type: 'jelly' },
-    moveLimit: 15,
+    moveLimit: 20,
     jellyLayout: buildJellyBlock(8, 8, 4, 2),
     initialBombs: 3,
     bombTimer: 12,
-    starThresholds: [1700, 3800, 4900],
+    starThresholds: [3000, 4600, 5700],
   },
   {
     id: 6,
     name: 'Peppermint Peaks',
-    objective: { type: 'score', target: 5400 },
+    objective: { type: 'score', target: 3400 },
     moveLimit: 21,
     jellyLayout: null,
-    starThresholds: [5400, 7400, 9600],
+    starThresholds: [3400, 5300, 6200],
   },
   {
     id: 7,
     name: 'Bubblegum Bay',
     objective: { type: 'jelly' },
-    moveLimit: 19,
+    moveLimit: 23,
     jellyLayout: buildJellyCheckerboard(8, 8, 1),
-    starThresholds: [2200, 5000, 6100],
+    starThresholds: [3400, 4600, 5900],
   },
   {
     id: 8,
     name: 'Caramel Canyon',
-    objective: { type: 'score', target: 5600 },
+    objective: { type: 'score', target: 3400 },
     moveLimit: 22,
     jellyLayout: null,
     initialBombs: 2,
     bombTimer: 14,
-    starThresholds: [5600, 7400, 9200],
+    starThresholds: [3400, 5200, 6500],
   },
   {
     id: 9,
     name: 'Marshmallow Marsh',
     objective: { type: 'jelly' },
-    moveLimit: 26,
+    moveLimit: 38,
     jellyLayout: buildJellyCorners(8, 8, 3, 2),
     // A licorice wall across the middle. It can't be matched or swapped, and it
     // absorbs striped beams, so the two halves of the board have to be worked
     // separately until the wall is chipped away by adjacent matches.
     blockerLayout: blockersAt(8, 8, BLOCKER.LICORICE, [
       [3, 1], [3, 2], [3, 5], [3, 6],
-      [4, 1], [4, 2], [4, 5], [4, 6],
+      [4, 1], [4, 6],
     ]),
-    starThresholds: [3500, 6500, 8200],
+    starThresholds: [4800, 7100, 8600],
   },
   {
     id: 10,
     name: 'Rainbow Summit',
     objective: { type: 'jelly' },
-    moveLimit: 21,
+    moveLimit: 30,
     jellyLayout: buildJellyFull(8, 8, 1),
     initialBombs: 2,
     bombTimer: 16,
-    starThresholds: [2400, 5500, 6900],
+    starThresholds: [4100, 6000, 7600],
   },
   {
     id: 11,
     name: 'Cocoa Quarry',
     objective: { type: 'jelly' },
-    moveLimit: 28,
+    moveLimit: 26,
     jellyLayout: buildJellyCheckerboard(8, 8, 1),
     // Two chocolate seeds. Leave them alone for a turn and they eat a candy —
     // the level is a race between clearing jelly and containing the spread.
     blockerLayout: blockersAt(8, 8, BLOCKER.CHOCOLATE, [[0, 0], [7, 7]]),
     // Four caged candies to break open along the way.
     lockLayout: locksAt(8, 8, [[2, 2], [2, 5], [5, 2], [5, 5]]),
-    starThresholds: [2600, 5200, 6800],
+    starThresholds: [4400, 6100, 7400],
   },
 ];
 

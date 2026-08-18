@@ -14,13 +14,13 @@ export default defineConfig({
         // precached, which silently breaks the offline playback guarantee that
         // is the whole reason these clips are pre-rendered instead of spoken
         // via the Web Speech API.
-        globPatterns: ['**/*.{js,css,html,svg,mp3}'],
+        globPatterns: ['**/*.{js,css,html,svg,mp3,webm}'],
         // 36 voice clips push the precache past the default 2 MiB per-file /
         // total budget warnings; clips are small but numerous.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       manifest: {
-        name: 'Candy Crush Saga Clone',
+        name: 'Candy Saga (සීනි කැට රාජධානිය)',
         short_name: 'Candy Saga',
         description: 'A match-3 candy crushing saga adventure.',
         theme_color: '#ff5da2',

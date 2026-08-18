@@ -1,8 +1,25 @@
-# Kandy Crush 🇱🇰 (Sinhala Edition)
+# සීනි කැට රාජධානිය 👑 (Candy Saga - Sinhala Edition)
 
-A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motion, featuring a localized **Sri Lankan / Sinhala Voice Announcer** and packaged for Android via Capacitor.
+A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motion, featuring the **"සීනි කැට රාජධානිය"** (*Sugar Gem Kingdom*) aesthetic, a localized **Sri Lankan / Sinhala Voice Announcer**, and packaged for Android via Capacitor.
 
 **App ID**: `app.kandy.crush`
+
+---
+
+## 🏰 👑 සීනි කැට රාජධානිය (Sugar Gem Kingdom Theme & Visuals)
+
+- **👑 Royal Crown Header Banner**:
+  - Main header features **👑 සීනි කැට රාජධානිය** in 3D candy text shadow, an animated golden crown badge, and a frosted glass banner with a glowing golden bottom border.
+- **🏰 Sugar Gem Castle Peak**:
+  - A majestic 3D animated **Sugar Gem Castle** (`🏰✨👑`) crowns the top peak of the winding map trail with a pulsing radial gold aura.
+- **💎 3D Cut Sugar Gem Level Nodes**:
+  - Map level nodes feature cut sugar gem geometry with top crystal shine lines (`::before`), 3D depth, and glowing golden crown current-level auras (`.current-level`).
+- **✨ Floating Sugar Kingdom Particles**:
+  - Ambient floating sugar crystals, diamonds, crowns, and sparkles (`💎`, `✨`, `👑`, `🍬`, `🔮`, `⭐`) drift continuously across the map backdrop.
+- **🚀 Pulsing Royal Play Button**:
+  - Bottom `"ගේම් එක පටන් ගන්න"` button features a 3D Royal Gold & Magenta bar with a crown badge, spinning sparkle icon, and shimmering light sweep animations.
+- **📜 Royal Level Briefing Modal**:
+  - Pre-game briefing card features a **Golden Crown & Gem Crest** (`💎 👑 💎`), parchment frame with gold borders, glowing target badges, and **3D Holographic Booster Selection Cards**.
 
 ---
 

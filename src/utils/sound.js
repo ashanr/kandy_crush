@@ -526,3 +526,62 @@ export function playSinhalaLose() {
   speakSinhalaFile('lose');
 }
 
+let introBuffer = null;
+
+async function loadIntroBuffer(ctx) {
+  if (introBuffer) return introBuffer;
+  try {
+    const res = await fetch('/voices/intro_pebbles.webm');
+    if (!res.ok) return null;
+    const raw = await res.arrayBuffer();
+    introBuffer = await ctx.decodeAudioData(raw);
+    return introBuffer;
+  } catch {
+    return null;
+  }
+}
+
+export async function playIntroVoice() {
+  try {
+    const ctx = getContext();
+    const buf = await loadIntroBuffer(ctx);
+    if (!buf) return;
+
+    stopAnnouncerVoice();
+
+    const source = ctx.createBufferSource();
+    source.buffer = buf;
+    activeVoiceSource = source;
+
+    const out = ctx.createGain();
+    out.gain.value = 1;
+    out.connect(ctx.destination);
+
+    const dry = ctx.createGain();
+    dry.gain.value = 0.85;
+    source.connect(dry).connect(out);
+
+    const convolver = ctx.createConvolver();
+    convolver.buffer = getImpulseResponse(ctx);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.35;
+    source.connect(convolver).connect(wet).connect(out);
+
+    duckBGM();
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (activeVoiceSource === source) activeVoiceSource = null;
+      unduckBGM();
+    };
+    source.onended = restore;
+    window.setTimeout(restore, Math.ceil(buf.duration * 1000) + 1500);
+
+    source.start();
+  } catch {
+    // Audio failure guard
+  }
+}
+
+

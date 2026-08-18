@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { SPECIAL } from '../game/board.js';
+import { playIntroVoice } from '../utils/sound.js';
 
 // One free special seeded onto the board before the first move. Kept to a
 // single pick: the point is a small opening advantage the player chooses, not
@@ -45,15 +46,25 @@ export default function LevelIntro({ level, onStart, onCancel }) {
   const objective = objectiveSummary(level);
   const [startBooster, setStartBooster] = useState(null);
 
+  useEffect(() => {
+    playIntroVoice();
+  }, []);
+
   return (
     <div className="result-modal" onClick={onCancel}>
       <motion.div
-        className="result-card level-intro-card"
+        className="result-card level-intro-card royal-briefing-card"
         onClick={(e) => e.stopPropagation()}
         initial={{ scale: 0.8, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       >
+        <div className="royal-card-crest">
+          <span className="royal-crest-gem">💎</span>
+          <span className="royal-crest-crown">👑</span>
+          <span className="royal-crest-gem">💎</span>
+        </div>
+
         <div className="level-intro-number">Level {level.id}</div>
         <h2 className="level-intro-name">{level.name}</h2>
 

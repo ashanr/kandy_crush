@@ -193,9 +193,14 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
 
   return (
     <div className="saga-map" onClick={unlockAudio}>
-      <div className="saga-header">
+      <div className="saga-header royal-header">
         <div className="saga-title-block">
-          <h1 className="saga-title">Candy Saga</h1>
+          <div className="saga-title-wrapper">
+            <span className="royal-header-crown">👑</span>
+            <h1 className="saga-title">
+              සීනි කැට රාජධානිය
+            </h1>
+          </div>
           {/* The number the map is actually played for. Per-level stars were
               shown on each node but never summed. */}
           <motion.div
@@ -221,17 +226,35 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
       </div>
       
       <div className="saga-scroll-area" ref={scrollAreaRef}>
-        {/* Decorative Background Elements */}
+        {/* Decorative Sugar Kingdom Background Particles */}
+        <div className="kingdom-floater kingdom-floater-1">💎</div>
+        <div className="kingdom-floater kingdom-floater-2">✨</div>
+        <div className="kingdom-floater kingdom-floater-3">👑</div>
+        <div className="kingdom-floater kingdom-floater-4">🍬</div>
+        <div className="kingdom-floater kingdom-floater-5">🔮</div>
+        <div className="kingdom-floater kingdom-floater-6">⭐</div>
         <div className="cloud cloud-1">☁️</div>
         <div className="cloud cloud-2">☁️</div>
-        <div className="cloud cloud-3">☁️</div>
-        <div className="cloud cloud-4">☁️</div>
 
         <div
           ref={pathRef}
           className="saga-path"
           style={{ height: `${PATH_HEIGHT}px`, background: zoneGradient }}
         >
+          {/* Majestic Sugar Gem Castle Peak */}
+          <div className="sugar-castle-peak">
+            <div className="castle-aura-glow"></div>
+            <div className="castle-icon-container">
+              <span className="castle-sparkle sparkle-left">✨</span>
+              <span className="castle-emoji">🏰</span>
+              <span className="castle-crown">👑</span>
+              <span className="castle-sparkle sparkle-right">💎</span>
+            </div>
+            <div className="castle-banner">
+              <span>🏰 සීනි කැට රාජධානිය 🏰</span>
+            </div>
+          </div>
+
           {/* Parallax depth layers — drift slower than the trail itself. */}
           <div className="saga-parallax" style={{ top: PATH_HEIGHT * 0.18, transform: `translateY(${scrollY * 0.28}px)` }}>
             <svg className="saga-hills saga-hills--far" viewBox="0 0 400 120" preserveAspectRatio="none" height="120">
@@ -394,13 +417,17 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
           >
             <button
               type="button"
-              className="saga-play-btn"
+              className="saga-play-btn royal-play-btn"
               onClick={() => onSelectLevel(currentState.level)}
             >
-              <span className="saga-play-label">ගේම් එක පටන් ගන්න</span>
-              <span className="saga-play-level">
-                Level {currentState.level.id} · {currentState.level.name}
-              </span>
+              <span className="saga-play-badge">👑</span>
+              <div className="saga-play-text">
+                <span className="saga-play-label">ගේම් එක පටන් ගන්න</span>
+                <span className="saga-play-level">
+                  Level {currentState.level.id} · {currentState.level.name}
+                </span>
+              </div>
+              <span className="saga-play-sparkle">✨</span>
             </button>
           </motion.div>
         )}
