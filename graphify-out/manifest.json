@@ -1,0 +1,512 @@
+{
+  "package.json": {
+    "mtime": 1786996104.6603453,
+    "seen": 1787022336.3471928,
+    "ast_hash": "a81e2c84354d656c8e18a4fe3d25936f",
+    "semantic_hash": "a81e2c84354d656c8e18a4fe3d25936f"
+  },
+  "scripts/generate_all_voices.py": {
+    "mtime": 1786989428.7534313,
+    "seen": 1787022336.3471975,
+    "ast_hash": "090d1addd5558fbba6a6a25abfed1939",
+    "semantic_hash": "090d1addd5558fbba6a6a25abfed1939"
+  },
+  "src/App.jsx": {
+    "mtime": 1786993333.015637,
+    "seen": 1787022336.3472009,
+    "ast_hash": "0f3bcdb314a41bd509645d228f6bb447",
+    "semantic_hash": "0f3bcdb314a41bd509645d228f6bb447"
+  },
+  "src/components/AnnouncerOverlay.jsx": {
+    "mtime": 1786980901.7977574,
+    "seen": 1787022336.3472033,
+    "ast_hash": "7d60d74e4833ed443c15d26d822a3793",
+    "semantic_hash": "7d60d74e4833ed443c15d26d822a3793"
+  },
+  "src/components/BoosterBar.jsx": {
+    "mtime": 1786980907.607613,
+    "seen": 1787022336.3472056,
+    "ast_hash": "e0d59315f6b88413cee2d8b8ad5acb98",
+    "semantic_hash": "e0d59315f6b88413cee2d8b8ad5acb98"
+  },
+  "src/components/CandyShatter.jsx": {
+    "mtime": 1786990449.943833,
+    "seen": 1787022336.3472073,
+    "ast_hash": "f505c994c6b65bbee1688e21bc241d23",
+    "semantic_hash": "f505c994c6b65bbee1688e21bc241d23"
+  },
+  "src/components/CandySprite.jsx": {
+    "mtime": 1786994741.0986302,
+    "seen": 1787022336.347209,
+    "ast_hash": "a0874b8bf6ca8a0f6036c221ab809a47",
+    "semantic_hash": "a0874b8bf6ca8a0f6036c221ab809a47"
+  },
+  "src/components/DynamicBackground.jsx": {
+    "mtime": 1786990982.729414,
+    "seen": 1787022336.3472104,
+    "ast_hash": "ad208366ae2855938ea13a34a28663cd",
+    "semantic_hash": "ad208366ae2855938ea13a34a28663cd"
+  },
+  "src/components/GameBoard.jsx": {
+    "mtime": 1786995618.3053887,
+    "seen": 1787022336.3472123,
+    "ast_hash": "989c7d39ca105234550ef502c3b9a416",
+    "semantic_hash": "989c7d39ca105234550ef502c3b9a416"
+  },
+  "src/components/ParticleCanvas.jsx": {
+    "mtime": 1786990440.8905137,
+    "seen": 1787022336.347214,
+    "ast_hash": "d7c0c99deba5b24220f865de3508dc65",
+    "semantic_hash": "d7c0c99deba5b24220f865de3508dc65"
+  },
+  "src/components/SagaMap.jsx": {
+    "mtime": 1786992348.2153318,
+    "seen": 1787022336.3472161,
+    "ast_hash": "cef60cad0aa0a4282367555b4ab6f0d6",
+    "semantic_hash": "cef60cad0aa0a4282367555b4ab6f0d6"
+  },
+  "src/components/StarProgress.jsx": {
+    "mtime": 1786993230.7033305,
+    "seen": 1787022336.3472183,
+    "ast_hash": "31d1dd6f78bbc890d09f5d686558e50a",
+    "semantic_hash": "31d1dd6f78bbc890d09f5d686558e50a"
+  },
+  "src/components/SugarCrush.jsx": {
+    "mtime": 1786988194.2338288,
+    "seen": 1787022336.34722,
+    "ast_hash": "0de9beb2bda3d02753f7163a56656aae",
+    "semantic_hash": "0de9beb2bda3d02753f7163a56656aae"
+  },
+  "src/data/levels.js": {
+    "mtime": 1786994831.4281428,
+    "seen": 1787022336.3472216,
+    "ast_hash": "d55a88fff7803ab757a6f592823d42cd",
+    "semantic_hash": "d55a88fff7803ab757a6f592823d42cd"
+  },
+  "src/game/board.js": {
+    "mtime": 1786994649.6265032,
+    "seen": 1787022336.3472233,
+    "ast_hash": "572428b3b63a10311ec454122f09adcb",
+    "semantic_hash": "572428b3b63a10311ec454122f09adcb"
+  },
+  "src/game/board.test.js": {
+    "mtime": 1786994903.6046228,
+    "seen": 1787022336.3472245,
+    "ast_hash": "24bc1990856808bf4fe417035dc3bf77",
+    "semantic_hash": "24bc1990856808bf4fe417035dc3bf77"
+  },
+  "src/game/specialCombos.js": {
+    "mtime": 1786994394.783303,
+    "seen": 1787022336.3472264,
+    "ast_hash": "b6927c762ce5de6ba8b82e31fcaeaa0c",
+    "semantic_hash": "b6927c762ce5de6ba8b82e31fcaeaa0c"
+  },
+  "src/main.jsx": {
+    "mtime": 1786980896.4698496,
+    "seen": 1787022336.3472278,
+    "ast_hash": "89fe151564e32a66fc2328f0fc92c486",
+    "semantic_hash": "89fe151564e32a66fc2328f0fc92c486"
+  },
+  "src/utils/announcer.js": {
+    "mtime": 1786989721.1123114,
+    "seen": 1787022336.3472292,
+    "ast_hash": "8dc13c15540629b232ecb1080eb6717b",
+    "semantic_hash": "8dc13c15540629b232ecb1080eb6717b"
+  },
+  "src/utils/announcer.test.js": {
+    "mtime": 1786989830.4498115,
+    "seen": 1787022336.3472311,
+    "ast_hash": "b495b4755270e8052c05092d954e2696",
+    "semantic_hash": "b495b4755270e8052c05092d954e2696"
+  },
+  "src/utils/gridGeometry.js": {
+    "mtime": 1786990547.2952073,
+    "seen": 1787022336.3472328,
+    "ast_hash": "c3bd001510154b9dc3ce61616dcbe5d0",
+    "semantic_hash": "c3bd001510154b9dc3ce61616dcbe5d0"
+  },
+  "src/utils/gridGeometry.test.js": {
+    "mtime": 1786990564.6530018,
+    "seen": 1787022336.3472345,
+    "ast_hash": "a938c41ad6c1e51a34c791f6a9a84490",
+    "semantic_hash": "a938c41ad6c1e51a34c791f6a9a84490"
+  },
+  "src/utils/haptics.js": {
+    "mtime": 1786980892.1939118,
+    "seen": 1787022336.3472362,
+    "ast_hash": "4068a70ddaacd7a51cc8e440cf3aa5c7",
+    "semantic_hash": "4068a70ddaacd7a51cc8e440cf3aa5c7"
+  },
+  "src/utils/particles.js": {
+    "mtime": 1786983708.331651,
+    "seen": 1787022336.3472373,
+    "ast_hash": "a634cd7c0b7c77796a899ee6145701d5",
+    "semantic_hash": "a634cd7c0b7c77796a899ee6145701d5"
+  },
+  "src/utils/progression.js": {
+    "mtime": 1786992280.2068121,
+    "seen": 1787022336.3472393,
+    "ast_hash": "4e3518dfd7a24ea3c917930202347e7e",
+    "semantic_hash": "4e3518dfd7a24ea3c917930202347e7e"
+  },
+  "src/utils/progression.test.js": {
+    "mtime": 1786992370.9819298,
+    "seen": 1787022336.3472407,
+    "ast_hash": "eaff87435658fdf542de5d3f64c42b1c",
+    "semantic_hash": "eaff87435658fdf542de5d3f64c42b1c"
+  },
+  "src/utils/sound.js": {
+    "mtime": 1786992804.20546,
+    "seen": 1787022336.3472426,
+    "ast_hash": "971bb0314ae5c0a440eca9edc821d7ef",
+    "semantic_hash": "971bb0314ae5c0a440eca9edc821d7ef"
+  },
+  "vite.config.js": {
+    "mtime": 1786989376.4492147,
+    "seen": 1787022336.347244,
+    "ast_hash": "f28edc1750a64483f783b25a325f591e",
+    "semantic_hash": "f28edc1750a64483f783b25a325f591e"
+  },
+  "public/voices/female/elakiri.mp3": {
+    "mtime": 1786984520.0423627,
+    "seen": 1787022336.3472586,
+    "ast_hash": "4e02b188e670bb5869ac81a57cb772fb",
+    "semantic_hash": "4e02b188e670bb5869ac81a57cb772fb"
+  },
+  "public/voices/female/elakiri_1.mp3": {
+    "mtime": 1786989524.380251,
+    "seen": 1787022336.3472605,
+    "ast_hash": "c594154e24d2bc84974c0b75028e1cfb",
+    "semantic_hash": "c594154e24d2bc84974c0b75028e1cfb"
+  },
+  "public/voices/female/elakiri_2.mp3": {
+    "mtime": 1786989526.2746902,
+    "seen": 1787022336.347262,
+    "ast_hash": "44af7257ee2c6fb39531efce648ca71a",
+    "semantic_hash": "44af7257ee2c6fb39531efce648ca71a"
+  },
+  "public/voices/female/elakiri_3.mp3": {
+    "mtime": 1786989527.9267125,
+    "seen": 1787022336.3472636,
+    "ast_hash": "2b3528feb4089fd095f31bd2d5e07141",
+    "semantic_hash": "2b3528feb4089fd095f31bd2d5e07141"
+  },
+  "public/voices/female/lose.mp3": {
+    "mtime": 1786984523.5581095,
+    "seen": 1787022336.347265,
+    "ast_hash": "a5540a663beaa50f0136c18f8dee9ff4",
+    "semantic_hash": "a5540a663beaa50f0136c18f8dee9ff4"
+  },
+  "public/voices/female/lose_1.mp3": {
+    "mtime": 1786989547.07409,
+    "seen": 1787022336.3472667,
+    "ast_hash": "86ff6d1dc55a2387287d81ed91e34fe5",
+    "semantic_hash": "86ff6d1dc55a2387287d81ed91e34fe5"
+  },
+  "public/voices/female/lose_2.mp3": {
+    "mtime": 1786989549.2935154,
+    "seen": 1787022336.347268,
+    "ast_hash": "bb5643e2c84479103a448dc1c2b8a380",
+    "semantic_hash": "bb5643e2c84479103a448dc1c2b8a380"
+  },
+  "public/voices/female/lose_3.mp3": {
+    "mtime": 1786989565.7763546,
+    "seen": 1787022336.3472695,
+    "ast_hash": "f0ae499d6a252629f7cbfedeccd3e991",
+    "semantic_hash": "f0ae499d6a252629f7cbfedeccd3e991"
+  },
+  "public/voices/female/niyamai.mp3": {
+    "mtime": 1786984507.5651894,
+    "seen": 1787022336.3472714,
+    "ast_hash": "9592e7d32dd70e4d71d9347c5921196a",
+    "semantic_hash": "9592e7d32dd70e4d71d9347c5921196a"
+  },
+  "public/voices/female/niyamai_1.mp3": {
+    "mtime": 1786989505.587679,
+    "seen": 1787022336.3472729,
+    "ast_hash": "133a76e173ad828f386344a3e7f748bf",
+    "semantic_hash": "133a76e173ad828f386344a3e7f748bf"
+  },
+  "public/voices/female/niyamai_2.mp3": {
+    "mtime": 1786989507.8072774,
+    "seen": 1787022336.3472745,
+    "ast_hash": "dc36326f9f9316eae7551660dc63da87",
+    "semantic_hash": "dc36326f9f9316eae7551660dc63da87"
+  },
+  "public/voices/female/niyamai_3.mp3": {
+    "mtime": 1786989510.0263772,
+    "seen": 1787022336.3472757,
+    "ast_hash": "d6c47860824ec0691524b5dee0518493",
+    "semantic_hash": "d6c47860824ec0691524b5dee0518493"
+  },
+  "public/voices/female/patta.mp3": {
+    "mtime": 1786984518.8875623,
+    "seen": 1787022336.347278,
+    "ast_hash": "006155cab6b01f5501cdb2055246891a",
+    "semantic_hash": "006155cab6b01f5501cdb2055246891a"
+  },
+  "public/voices/female/patta_1.mp3": {
+    "mtime": 1786989511.959471,
+    "seen": 1787022336.3472795,
+    "ast_hash": "27b4eb5af5afe9ea7855592907b8d830",
+    "semantic_hash": "27b4eb5af5afe9ea7855592907b8d830"
+  },
+  "public/voices/female/patta_2.mp3": {
+    "mtime": 1786989514.8220103,
+    "seen": 1787022336.347281,
+    "ast_hash": "15bd7997034f247e96470ef0eae7da4b",
+    "semantic_hash": "15bd7997034f247e96470ef0eae7da4b"
+  },
+  "public/voices/female/patta_3.mp3": {
+    "mtime": 1786989522.344524,
+    "seen": 1787022336.3472822,
+    "ast_hash": "6ebfbe7b3e96816fd00e70e72e61cda7",
+    "semantic_hash": "6ebfbe7b3e96816fd00e70e72e61cda7"
+  },
+  "public/voices/female/wedak_na.mp3": {
+    "mtime": 1786984521.2336812,
+    "seen": 1787022336.3472836,
+    "ast_hash": "ea8bc869703cbe3d5c83a47a6f4e4690",
+    "semantic_hash": "ea8bc869703cbe3d5c83a47a6f4e4690"
+  },
+  "public/voices/female/wedak_na_1.mp3": {
+    "mtime": 1786989529.9093876,
+    "seen": 1787022336.347285,
+    "ast_hash": "1e08be43c1b56d09854f0103d05f3ce5",
+    "semantic_hash": "1e08be43c1b56d09854f0103d05f3ce5"
+  },
+  "public/voices/female/wedak_na_2.mp3": {
+    "mtime": 1786989531.772522,
+    "seen": 1787022336.3472865,
+    "ast_hash": "7f965d7b91d407780286d38986c5f4ae",
+    "semantic_hash": "7f965d7b91d407780286d38986c5f4ae"
+  },
+  "public/voices/female/wedak_na_3.mp3": {
+    "mtime": 1786989533.5615988,
+    "seen": 1787022336.3472881,
+    "ast_hash": "3439caa677fb3320c2b618e786a06116",
+    "semantic_hash": "3439caa677fb3320c2b618e786a06116"
+  },
+  "public/voices/female/win.mp3": {
+    "mtime": 1786984522.6082978,
+    "seen": 1787022336.3472896,
+    "ast_hash": "6d6cc06a0a98903c1019500455642a79",
+    "semantic_hash": "6d6cc06a0a98903c1019500455642a79"
+  },
+  "public/voices/female/win_1.mp3": {
+    "mtime": 1786989537.585944,
+    "seen": 1787022336.3472912,
+    "ast_hash": "182f7bb6e05aa41b0fb7e590ddd507bb",
+    "semantic_hash": "182f7bb6e05aa41b0fb7e590ddd507bb"
+  },
+  "public/voices/female/win_2.mp3": {
+    "mtime": 1786989542.7460916,
+    "seen": 1787022336.3472927,
+    "ast_hash": "fe330f60014a58849bf2b5ffe1111280",
+    "semantic_hash": "fe330f60014a58849bf2b5ffe1111280"
+  },
+  "public/voices/female/win_3.mp3": {
+    "mtime": 1786989544.843576,
+    "seen": 1787022336.3472939,
+    "ast_hash": "8baab682be62a628e5af5205ce211387",
+    "semantic_hash": "8baab682be62a628e5af5205ce211387"
+  },
+  "public/voices/male/elakiri.mp3": {
+    "mtime": 1786984351.4153063,
+    "seen": 1787022336.3472955,
+    "ast_hash": "d8082d09ca23ab2c3267688aeba5c291",
+    "semantic_hash": "d8082d09ca23ab2c3267688aeba5c291"
+  },
+  "public/voices/male/elakiri_1.mp3": {
+    "mtime": 1786989465.0624382,
+    "seen": 1787022336.3472967,
+    "ast_hash": "74fad0d8ac3b1a7387cb182452d4f6f1",
+    "semantic_hash": "74fad0d8ac3b1a7387cb182452d4f6f1"
+  },
+  "public/voices/male/elakiri_2.mp3": {
+    "mtime": 1786989466.830754,
+    "seen": 1787022336.3472984,
+    "ast_hash": "4b91d9e5b60f34afa9e5e4f0b842263c",
+    "semantic_hash": "4b91d9e5b60f34afa9e5e4f0b842263c"
+  },
+  "public/voices/male/elakiri_3.mp3": {
+    "mtime": 1786989468.8934636,
+    "seen": 1787022336.3472993,
+    "ast_hash": "a4019234c7a451c14876b6a13095b1ed",
+    "semantic_hash": "a4019234c7a451c14876b6a13095b1ed"
+  },
+  "public/voices/male/lose.mp3": {
+    "mtime": 1786984355.8515391,
+    "seen": 1787022336.3473005,
+    "ast_hash": "6d9e2be1642131bb3f2c6eedf18be004",
+    "semantic_hash": "6d9e2be1642131bb3f2c6eedf18be004"
+  },
+  "public/voices/male/lose_1.mp3": {
+    "mtime": 1786989498.2738214,
+    "seen": 1787022336.3473022,
+    "ast_hash": "a441154f5392662095757168c238c779",
+    "semantic_hash": "a441154f5392662095757168c238c779"
+  },
+  "public/voices/male/lose_2.mp3": {
+    "mtime": 1786989501.2484124,
+    "seen": 1787022336.3473036,
+    "ast_hash": "076160dcd2022f291976f8a9d0ef75bf",
+    "semantic_hash": "076160dcd2022f291976f8a9d0ef75bf"
+  },
+  "public/voices/male/lose_3.mp3": {
+    "mtime": 1786989503.2639918,
+    "seen": 1787022336.3473053,
+    "ast_hash": "7079f34d776d9791f1f51a6afe13c070",
+    "semantic_hash": "7079f34d776d9791f1f51a6afe13c070"
+  },
+  "public/voices/male/niyamai.mp3": {
+    "mtime": 1786984349.247999,
+    "seen": 1787022336.347307,
+    "ast_hash": "f07cb5712b8e1b8683fb2ef278ab1b31",
+    "semantic_hash": "f07cb5712b8e1b8683fb2ef278ab1b31"
+  },
+  "public/voices/male/niyamai_1.mp3": {
+    "mtime": 1786989451.3277295,
+    "seen": 1787022336.3473084,
+    "ast_hash": "d381b47a8b51870ad033fc03b936f0f4",
+    "semantic_hash": "d381b47a8b51870ad033fc03b936f0f4"
+  },
+  "public/voices/male/niyamai_2.mp3": {
+    "mtime": 1786989453.3446572,
+    "seen": 1787022336.3473098,
+    "ast_hash": "d6dead97d2f893943a66db1379b48001",
+    "semantic_hash": "d6dead97d2f893943a66db1379b48001"
+  },
+  "public/voices/male/niyamai_3.mp3": {
+    "mtime": 1786989455.279477,
+    "seen": 1787022336.3473113,
+    "ast_hash": "921e3f65396670772f1a349d9e8d0f8e",
+    "semantic_hash": "921e3f65396670772f1a349d9e8d0f8e"
+  },
+  "public/voices/male/patta.mp3": {
+    "mtime": 1786984350.292518,
+    "seen": 1787022336.3473127,
+    "ast_hash": "96015bc39ba226a9ab3c1b99b6379b50",
+    "semantic_hash": "96015bc39ba226a9ab3c1b99b6379b50"
+  },
+  "public/voices/male/patta_1.mp3": {
+    "mtime": 1786989456.9306011,
+    "seen": 1787022336.3473144,
+    "ast_hash": "f1c91f3f83fa32a88373ab7deeda091c",
+    "semantic_hash": "f1c91f3f83fa32a88373ab7deeda091c"
+  },
+  "public/voices/male/patta_2.mp3": {
+    "mtime": 1786989458.8287935,
+    "seen": 1787022336.347316,
+    "ast_hash": "4a82ad5a3a7d4a2f4569e5bcd521bf29",
+    "semantic_hash": "4a82ad5a3a7d4a2f4569e5bcd521bf29"
+  },
+  "public/voices/male/patta_3.mp3": {
+    "mtime": 1786989461.0693357,
+    "seen": 1787022336.3473175,
+    "ast_hash": "f8759e9fc814531c54f502d813c341e5",
+    "semantic_hash": "f8759e9fc814531c54f502d813c341e5"
+  },
+  "public/voices/male/wedak_na.mp3": {
+    "mtime": 1786984352.5694644,
+    "seen": 1787022336.3473191,
+    "ast_hash": "17c01b3c56dc0b4b0c54648e3534e2c5",
+    "semantic_hash": "17c01b3c56dc0b4b0c54648e3534e2c5"
+  },
+  "public/voices/male/wedak_na_1.mp3": {
+    "mtime": 1786989471.0554292,
+    "seen": 1787022336.3473206,
+    "ast_hash": "a24e722ff348dd5685caab31294bdfb6",
+    "semantic_hash": "a24e722ff348dd5685caab31294bdfb6"
+  },
+  "public/voices/male/wedak_na_2.mp3": {
+    "mtime": 1786989473.186349,
+    "seen": 1787022336.3473222,
+    "ast_hash": "77fcc1cc79352818a61cad0373f7fee3",
+    "semantic_hash": "77fcc1cc79352818a61cad0373f7fee3"
+  },
+  "public/voices/male/wedak_na_3.mp3": {
+    "mtime": 1786989475.2134962,
+    "seen": 1787022336.3473237,
+    "ast_hash": "5d46a3db671f5c00b05c3663a65db243",
+    "semantic_hash": "5d46a3db671f5c00b05c3663a65db243"
+  },
+  "public/voices/male/win.mp3": {
+    "mtime": 1786984353.637676,
+    "seen": 1787022336.3473248,
+    "ast_hash": "cfa13af9bf1f510ee2ab7aa48616e05e",
+    "semantic_hash": "cfa13af9bf1f510ee2ab7aa48616e05e"
+  },
+  "public/voices/male/win_1.mp3": {
+    "mtime": 1786989477.6254609,
+    "seen": 1787022336.3473268,
+    "ast_hash": "eb9cc64124192ab562008f088c0d3a20",
+    "semantic_hash": "eb9cc64124192ab562008f088c0d3a20"
+  },
+  "public/voices/male/win_2.mp3": {
+    "mtime": 1786989480.6942186,
+    "seen": 1787022336.347328,
+    "ast_hash": "3264511b42320a3a53e4852b0ba29e6c",
+    "semantic_hash": "3264511b42320a3a53e4852b0ba29e6c"
+  },
+  "public/voices/male/win_3.mp3": {
+    "mtime": 1786989484.621374,
+    "seen": 1787022336.3473299,
+    "ast_hash": "1957f1a30cd3abe0e15147f19c201593",
+    "semantic_hash": "1957f1a30cd3abe0e15147f19c201593"
+  },
+  "capacitor.config.json": {
+    "mtime": 1786996118.31031,
+    "seen": 1787022336.3471828,
+    "ast_hash": "eaa3c05fe326fa48754990089cbff05c",
+    "semantic_hash": "eaa3c05fe326fa48754990089cbff05c"
+  },
+  "README.md": {
+    "mtime": 1786989986.378156,
+    "seen": 1787022336.347246,
+    "ast_hash": "4255b6ce627c20cc5397dbf4e34c9d29",
+    "semantic_hash": "4255b6ce627c20cc5397dbf4e34c9d29"
+  },
+  "docs/home_page_plan.md": {
+    "mtime": 1786991312.0112748,
+    "seen": 1787022336.3472474,
+    "ast_hash": "4ca4f8dd3e9b35c11df98acf9a705c60",
+    "semantic_hash": "4ca4f8dd3e9b35c11df98acf9a705c60"
+  },
+  "docs/implemented_features.md": {
+    "mtime": 1786994465.8151445,
+    "seen": 1787022336.3472486,
+    "ast_hash": "cc3e7702910c63a026faa4a699476d1c",
+    "semantic_hash": "cc3e7702910c63a026faa4a699476d1c"
+  },
+  "docs/improvements.md": {
+    "mtime": 1786985409.0055273,
+    "seen": 1787022336.3472507,
+    "ast_hash": "ce3996e8cea55c975ba6f52360c5515b",
+    "semantic_hash": "ce3996e8cea55c975ba6f52360c5515b"
+  },
+  "docs/missing_features.md": {
+    "mtime": 1786994471.4869149,
+    "seen": 1787022336.3472524,
+    "ast_hash": "eaa3f0a79489e18396d5970ff4dfc536",
+    "semantic_hash": "eaa3f0a79489e18396d5970ff4dfc536"
+  },
+  "docs/voice_enhancement_plan.md": {
+    "mtime": 1786989365.9410994,
+    "seen": 1787022336.3472543,
+    "ast_hash": "d016169593a4b6f8952a9e649cf8e20a",
+    "semantic_hash": "d016169593a4b6f8952a9e649cf8e20a"
+  },
+  "implementation_plan.md": {
+    "mtime": 1786983522.583086,
+    "seen": 1787022336.3472557,
+    "ast_hash": "c1477a232aad00bb6353d2fdb4c8e1ad",
+    "semantic_hash": "c1477a232aad00bb6353d2fdb4c8e1ad"
+  },
+  "index.html": {
+    "mtime": 1786996111.6149216,
+    "seen": 1787022336.3472571,
+    "ast_hash": "3201b5d834a20f1927f071dba3d830b2",
+    "semantic_hash": "3201b5d834a20f1927f071dba3d830b2"
+  }
+}
