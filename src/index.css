@@ -96,14 +96,126 @@ button {
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
-  /* Clear the absolutely-positioned header above. */
-  padding-top: calc(env(safe-area-inset-top) + 76px);
+  /* Clear the absolutely-positioned header above, and the play bar below so
+     the last level node is never trapped underneath it. */
+  padding-top: calc(env(safe-area-inset-top) + 88px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
   /* Hide scrollbar */
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 .saga-scroll-area::-webkit-scrollbar {
   display: none;
+}
+
+/* ---------------- Header: title + total stars ---------------- */
+
+.saga-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.saga-stars-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 217, 61, 0.45);
+  border-radius: 999px;
+  padding: 2px 10px 2px 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--accent-2);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.saga-stars-max {
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+/* ---------------- Play call-to-action ---------------- */
+
+.saga-play-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 10px 16px calc(env(safe-area-inset-bottom) + 12px);
+  /* Fade the map out behind the bar rather than cutting it with a hard edge. */
+  background: linear-gradient(180deg, rgba(18, 4, 37, 0) 0%, rgba(18, 4, 37, 0.75) 45%, rgba(18, 4, 37, 0.95) 100%);
+  pointer-events: none;
+}
+
+.saga-play-btn {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 11px 20px;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(180deg, #ff7ab8, var(--accent) 55%, #d81b60);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 0 #a3124a,
+    0 8px 22px rgba(255, 93, 162, 0.45);
+  transition: transform 0.12s, box-shadow 0.12s;
+  animation: play-pulse 2.4s ease-in-out infinite;
+}
+
+.saga-play-btn:active {
+  /* Squash onto its own base edge, matching the level nodes' press feel. */
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 #a3124a,
+    0 3px 12px rgba(255, 93, 162, 0.4);
+  animation: none;
+}
+
+.saga-play-label {
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.saga-play-level {
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+@keyframes play-pulse {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 4px 0 #a3124a, 0 8px 22px rgba(255, 93, 162, 0.45); }
+  50%      { box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 4px 0 #a3124a, 0 8px 30px rgba(255, 93, 162, 0.85); }
+}
+
+/* ---------------- Celebration ---------------- */
+
+/* The freshly-earned stretch of trail, brighter than the settled ribbon. */
+.saga-trail-new {
+  filter: drop-shadow(0 0 8px rgba(255, 217, 61, 0.9));
+}
+
+/* The level the win just opened. */
+.level-node.just-unlocked {
+  animation: unlock-glow 1.4s ease-out 1.15s;
+}
+
+@keyframes unlock-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0.9); }
+  40%  { box-shadow: 0 0 26px 12px rgba(255, 217, 61, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 217, 61, 0); }
 }
 
 .saga-path {
@@ -262,8 +374,12 @@ button {
 }
 
 .level-best {
-  font-size: 0.6rem;
-  opacity: 0.85;
+  font-size: 0.55rem;
+  font-weight: 700;
+  opacity: 0.9;
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: -0.2px;
 }
 
 /* ---------------- Game Board ---------------- */
@@ -361,6 +477,23 @@ button {
   font-size: 0.85rem;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+}
+
+/* Rolling score counter animation */
+.hud-stat .score-value {
+  display: inline-block;
+  transition: transform 0.15s ease-out;
+}
+
+.hud-stat .score-value.score-bump {
+  animation: scoreBump 0.3s ease-out;
+}
+
+@keyframes scoreBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.3); color: var(--accent-2); }
+  100% { transform: scale(1); }
 }
 
 .game-grid {
@@ -372,9 +505,13 @@ button {
   gap: 3px;
   /* Darkened glass. The old 6%-white panel sat too close to the background for
      the candies to read as sitting *in* a grid; they floated on frosted glass. */
-  background: linear-gradient(180deg, rgba(46, 18, 68, 0.5), rgba(24, 8, 40, 0.62));
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  /* No backdrop-filter here. It forced the browser to re-sample and re-blur
+     everything behind the grid on every frame in which any of its 64 candies
+     moved — which, during a cascade, is every frame. The panel is opaque
+     enough that the blur was barely visible anyway, so this is close to a free
+     win on mobile. (The HUD pills and map header still use it; those sit over
+     static content and animate rarely.) */
+  background: linear-gradient(180deg, rgba(46, 18, 68, 0.86), rgba(24, 8, 40, 0.92));
   border-radius: 20px;
   padding: 8px;
   /* Multi-layer glow border */
@@ -387,7 +524,31 @@ button {
     0 0 60px -10px var(--glass-glow);
   /* Top edge highlight for 3D depth */
   position: relative;
-  overflow: hidden;
+  /* Deliberately NOT `overflow: hidden`. The score popups, combo labels and
+     shatter shards are absolutely-positioned children of this element, and they
+     travel outward and upward from the cell they belong to — so a "+240" earned
+     on the top row, or shards from an edge cell, were being sliced off at the
+     panel border. Nothing here relies on the clip: the gloss pseudo-element is
+     already inset, and the particle canvas is sized exactly to the padding box.
+     Candy burst animations now spill slightly past the rounded edge, which
+     reads as an explosion rather than a truncation. */
+  overflow: visible;
+}
+
+/* Board camera shake on big explosions — lighter than the Sugar Crush shake,
+   proportional to the visual intensity of what just happened. */
+.board-shake {
+  animation: boardShake 0.35s ease-out;
+}
+
+@keyframes boardShake {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  15%  { transform: translate(-3px, 2px) rotate(-0.3deg); }
+  30%  { transform: translate(4px, -3px) rotate(0.3deg); }
+  45%  { transform: translate(-2px, 1px) rotate(-0.15deg); }
+  60%  { transform: translate(2px, -2px) rotate(0.15deg); }
+  80%  { transform: translate(-1px, 1px); }
+  100% { transform: translate(0, 0) rotate(0deg); }
 }
 
 /* Glossy top reflection */
@@ -435,17 +596,51 @@ button {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* An illegal swap used to play a sound and silently deselect, which reads as
-   "nothing happened" rather than "that move isn't legal". */
-.candy-cell.rejected {
-  animation: reject-shake 0.32s ease;
+/* Invalid swap slide-and-bounce — each candy slides halfway toward the other,
+   "collides", and springs back. Much clearer than a shake-in-place. */
+.candy-cell.rejected-right {
+  animation: reject-slide-right 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.candy-cell.rejected-left {
+  animation: reject-slide-left 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.candy-cell.rejected-up {
+  animation: reject-slide-up 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.candy-cell.rejected-down {
+  animation: reject-slide-down 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes reject-shake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  20%      { transform: translateX(-4px) rotate(-5deg); }
-  50%      { transform: translateX(4px) rotate(5deg); }
-  80%      { transform: translateX(-2px) rotate(-2deg); }
+@keyframes reject-slide-right {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(45%); }
+  55%  { transform: translateX(-10%); }
+  75%  { transform: translateX(5%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes reject-slide-left {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-45%); }
+  55%  { transform: translateX(10%); }
+  75%  { transform: translateX(-5%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes reject-slide-up {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(-45%); }
+  55%  { transform: translateY(10%); }
+  75%  { transform: translateY(-5%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes reject-slide-down {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(45%); }
+  55%  { transform: translateY(-10%); }
+  75%  { transform: translateY(5%); }
+  100% { transform: translateY(0); }
 }
 
 .candy-cell.selected {
@@ -475,7 +670,10 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0px 3px 5px rgba(0, 0, 0, 0.35));
+  /* No drop-shadow filter here. This element is transformed by Framer Motion on
+     every board change, and a filter forces its shadow to be re-rasterised each
+     frame — 64 times over. CandySprite's SVG already carries its own drop
+     shadow, so the candies keep their depth. */
   cursor: pointer;
   touch-action: none;
 }
@@ -546,6 +744,145 @@ button {
     transform: scale(1.25);
     opacity: 0.65;
   }
+}
+
+/* ---------------- Striped candy energy shimmer ---------------- */
+
+.candy-stripe-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 50%;
+  z-index: 6;
+}
+
+.candy-stripe-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -80%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 46%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.45) 54%,
+    transparent 70%
+  );
+  transform: rotate(0deg);
+  animation: stripeShimmerH 1.6s ease-in-out infinite;
+}
+
+.candy-stripe-shimmer.vertical::after {
+  top: -80%;
+  left: -50%;
+  width: 200%;
+  height: 40%;
+  background: linear-gradient(
+    195deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 46%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.45) 54%,
+    transparent 70%
+  );
+  animation: stripeShimmerV 1.6s ease-in-out infinite;
+}
+
+@keyframes stripeShimmerH {
+  0%   { left: -80%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
+}
+
+@keyframes stripeShimmerV {
+  0%   { top: -80%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 130%; opacity: 0; }
+}
+
+/* ---------------- Wrapped candy breathing pulse ---------------- */
+
+.candy-wrapped-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 5;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  animation: wrappedPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes wrappedPulse {
+  0%, 100% {
+    transform: scale(1);
+    border-color: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    transform: scale(1.08);
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 12px 2px rgba(192, 132, 252, 0.45);
+  }
+}
+
+/* Decorative infinite animations are the ones that keep the compositor awake
+   while nothing is happening. Honour the OS preference and stop them; the
+   gameplay-critical feedback (hint pulse, low-moves warning) is kept, since
+   removing those would cost the player information rather than just polish. */
+@media (prefers-reduced-motion: reduce) {
+  .candy-has-glint .candy-glint-overlay,
+  .candy-special-glow .candy-glow-ring,
+  .candy-stripe-shimmer,
+  .candy-wrapped-pulse,
+  .cloud,
+  .board-reactivity-overlay.danger,
+  .saga-play-btn {
+    animation: none !important;
+  }
+}
+
+/* ---------------- Background gameplay reactivity ---------------- */
+
+/* These used to animate `filter` directly on `.game-board-screen` — the root
+   element containing both full-screen canvases, the grid and all 64 candies.
+   Animating a filter there forces the whole subtree to be re-rasterised every
+   frame, and the bomb-danger variant runs `infinite`, so on a bomb level the
+   entire screen was re-compositing continuously while the player was trying to
+   drag candies. Both are now painted by a sibling overlay that animates only
+   `opacity`, which the compositor handles without repainting anything. */
+.board-reactivity-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 5;
+}
+
+.board-reactivity-overlay.combo {
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.5), transparent 65%);
+  animation: overlay-flash 0.4s ease-out;
+}
+
+.board-reactivity-overlay.danger {
+  background: radial-gradient(circle at 50% 50%, transparent 35%, rgba(180, 20, 40, 0.55) 100%);
+  animation: overlay-danger 1s ease-in-out infinite;
+}
+
+@keyframes overlay-flash {
+  0%   { opacity: 0; }
+  30%  { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@keyframes overlay-danger {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 0.55; }
 }
 
 /* Extra drop-shadow on the special candy wrapper itself */
@@ -823,6 +1160,34 @@ button {
   border: 1px solid var(--card-border);
 }
 
+/* ---------------- Coconut Wheel roll ---------------- */
+
+.coconut-roll {
+  position: absolute;
+  /* Anchored on the cell centre, like every other grid overlay. */
+  transform-origin: 50% 50%;
+  margin-left: -0.5px;
+  margin-top: -0.5px;
+  translate: -50% -50%;
+  pointer-events: none;
+  z-index: 15;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+}
+
+/* ---------------- Victory modal stars ---------------- */
+
+.result-star {
+  display: inline-block;
+  transform-origin: 50% 60%;
+}
+
+.result-star.earned {
+  color: var(--accent-2);
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    0 0 16px rgba(255, 217, 61, 0.85);
+}
+
 /* ---------------- Floating score popups ---------------- */
 
 .score-popup {
@@ -842,9 +1207,53 @@ button {
 .score-popup.big {
   font-size: 1.45rem;
   color: var(--accent-2);
+}
+
+/* ---------------- Combo reaction labels ---------------- */
+
+.combo-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 900;
+  pointer-events: none;
+  z-index: 16;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.combo-label.sweet {
+  font-size: 1.1rem;
+  color: #ffd93d;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.9),
+    0 0 12px rgba(255, 217, 61, 0.8);
+}
+
+.combo-label.tasty {
+  font-size: 1.35rem;
+  color: #ff9f43;
   text-shadow:
     0 2px 6px rgba(0, 0, 0, 0.9),
-    0 0 16px rgba(255, 217, 61, 0.95);
+    0 0 18px rgba(255, 159, 67, 0.9);
+}
+
+.combo-label.divine {
+  font-size: 1.6rem;
+  color: #ff5da2;
+  text-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.9),
+    0 0 24px rgba(255, 93, 162, 0.9),
+    0 0 48px rgba(255, 93, 162, 0.4);
+}
+
+.combo-label.sugar-crush-label {
+  font-size: 1.8rem;
+  background: linear-gradient(90deg, #ffd93d, #ff5da2, #38bdf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 20px rgba(255, 217, 61, 0.8));
 }
 
 /* ---------------- Sugar Crush leftover-moves bonus ---------------- */
@@ -877,6 +1286,152 @@ button {
     0 3px 0 #d81b60,
     0 5px 14px rgba(0, 0, 0, 0.6),
     0 0 24px rgba(255, 217, 61, 0.8);
+}
+
+/* Visually hidden but still announced by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keyboard focus ring on the board. Distinct from `.selected` (which means
+   "this candy is picked up") so the two states are never confused. */
+.candy-cell.kb-focus {
+  outline: 3px solid #7dd3fc;
+  outline-offset: -3px;
+  border-radius: 10px;
+  z-index: 9;
+}
+
+.candy-cell:focus {
+  outline: 3px solid #7dd3fc;
+  outline-offset: -3px;
+}
+
+.candy-cell:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------- Pre-game booster picker ---------------- */
+
+.level-intro-boosters {
+  margin-bottom: 14px;
+}
+
+.level-intro-boosters-label {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.level-intro-booster-row {
+  display: flex;
+  gap: 8px;
+}
+
+.start-booster {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  color: var(--text-light);
+  transition: transform 0.12s, border-color 0.15s, background 0.15s;
+}
+
+.start-booster.armed {
+  background: rgba(255, 217, 61, 0.16);
+  border-color: var(--accent-2);
+  transform: translateY(-2px);
+  box-shadow: 0 0 14px -2px rgba(255, 217, 61, 0.6);
+}
+
+.start-booster-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.start-booster-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+/* ---------------- Blockers ---------------- */
+
+.blocker-sprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* No gloss sweep or special glow: a blocker should read as "not a candy"
+     rather than as another colour worth trying to match. */
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
+}
+
+.blocker-sprite.chocolate {
+  animation: chocolate-menace 3.2s ease-in-out infinite;
+}
+
+/* A slow, uneasy swell — chocolate is the blocker that grows if ignored. */
+@keyframes chocolate-menace {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
+.candy-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #e4e4e7;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(228, 228, 231, 0.65);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 8;
+}
+
+/* ---------------- Out-of-moves second chance ---------------- */
+
+.second-chance-card {
+  width: min(320px, 100%);
+  border-color: rgba(255, 217, 61, 0.45);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.5),
+    0 0 40px -8px rgba(255, 217, 61, 0.35);
+}
+
+.second-chance-icon {
+  font-size: 2.6rem;
+  line-height: 1;
+  margin-bottom: 6px;
+  animation: second-chance-spin 2.4s ease-in-out infinite;
+}
+
+@keyframes second-chance-spin {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50%      { transform: rotate(180deg) scale(1.12); }
+}
+
+.second-chance-sub {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin: 0 0 16px;
 }
 
 /* ---------------- Level intro card ---------------- */
@@ -1030,6 +1585,20 @@ button {
   color: var(--accent-2);
   transform: scale(1.25);
   text-shadow: 0 0 8px rgba(255, 217, 61, 0.9);
+}
+
+/* Celebratory burst when a star threshold is newly crossed. */
+.star-marker.just-earned {
+  animation: starBurst 0.7s ease-out forwards;
+}
+
+@keyframes starBurst {
+  0%   { transform: scale(1.25); }
+  15%  { transform: scale(2.4); text-shadow: 0 0 20px rgba(255, 217, 61, 1), 0 0 40px rgba(255, 217, 61, 0.8); }
+  35%  { transform: scale(0.9); }
+  50%  { transform: scale(1.6); text-shadow: 0 0 14px rgba(255, 217, 61, 0.9); }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1.25); text-shadow: 0 0 8px rgba(255, 217, 61, 0.9); }
 }
 
 /* ---------------- Idle hint ---------------- */

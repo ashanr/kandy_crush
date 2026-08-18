@@ -9,8 +9,14 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- Portrait-locked to match the PWA manifest. The board is square and
+             sized from whichever viewport axis is tighter, so in landscape the
+             height term collapses it to roughly a third of its portrait size
+             while `touch-action: none` prevents scrolling to reach anything
+             pushed off screen. Match-3 games are portrait by convention. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="portrait"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"

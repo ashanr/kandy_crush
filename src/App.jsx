@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import SagaMap from './components/SagaMap.jsx';
 import GameBoard from './components/GameBoard.jsx';
 import LevelIntro from './components/LevelIntro.jsx';
@@ -18,6 +19,11 @@ export default function App() {
   const [activeLevel, setActiveLevel] = useState(null);
   const [result, setResult] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  // Set when returning to the map after a win, so the map can play the payoff
+  // (trail advancing, next level unlocking) instead of just reappearing.
+  const [celebration, setCelebration] = useState(null);
+  // Optional free special the player armed on the briefing card.
+  const [startBooster, setStartBooster] = useState(null);
 
   useEffect(() => {
     writeJSON(STORAGE_KEY, progress);
@@ -41,12 +47,18 @@ export default function App() {
   };
 
   // The map hands off to the briefing card, which hands off to the board.
-  const startPendingLevel = () => {
+  const startPendingLevel = (booster) => {
+    setStartBooster(booster ?? null);
     setActiveLevel(pendingLevel);
     setPendingLevel(null);
   };
 
   const closeResult = () => {
+    // Only a win is worth celebrating on the map. Losing, or exiting mid-level,
+    // returns to a quiet map as before.
+    if (result?.outcome === 'win' && activeLevel) {
+      setCelebration({ levelId: activeLevel.id, stars: result.stars });
+    }
     setResult(null);
     setActiveLevel(null);
   };
@@ -65,6 +77,7 @@ export default function App() {
         <GameBoard
           key={`${activeLevel.id}-${attempt}`}
           level={activeLevel}
+          startBooster={startBooster}
           onWin={handleWin}
           onLose={handleLose}
           onExit={() => setActiveLevel(null)}
@@ -81,9 +94,32 @@ export default function App() {
               </h2>
               <p>ලකුණු (Score): {result.score}</p>
               {result.outcome === 'win' && (
+                // Stars land one at a time rather than all being present on the
+                // first frame — the reveal is the reward, and showing the final
+                // tally instantly throws it away.
                 <div className="result-stars">
-                  {'★'.repeat(result.stars)}
-                  {'☆'.repeat(3 - result.stars)}
+                  {[1, 2, 3].map((s) => {
+                    const earned = s <= result.stars;
+                    return (
+                      <motion.span
+                        key={s}
+                        className={`result-star ${earned ? 'earned' : ''}`}
+                        initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                        animate={
+                          earned
+                            ? { scale: [0, 1.5, 0.9, 1], rotate: 0, opacity: 1 }
+                            : { scale: 1, rotate: 0, opacity: 1 }
+                        }
+                        transition={{
+                          delay: 0.25 + (s - 1) * 0.32,
+                          duration: earned ? 0.55 : 0.3,
+                          ease: 'easeOut',
+                        }}
+                      >
+                        {earned ? '★' : '☆'}
+                      </motion.span>
+                    );
+                  })}
                 </div>
               )}
               <div className="result-actions">
@@ -103,7 +139,12 @@ export default function App() {
 
   return (
     <>
-      <SagaMap progress={progress} onSelectLevel={setPendingLevel} />
+      <SagaMap
+        progress={progress}
+        celebration={celebration}
+        onCelebrationDone={() => setCelebration(null)}
+        onSelectLevel={setPendingLevel}
+      />
       {pendingLevel && (
         <LevelIntro
           level={pendingLevel}

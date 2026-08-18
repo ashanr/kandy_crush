@@ -47,6 +47,31 @@ describe('ParticleEngine idle gating', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  // Structural guard: adding a new effect collection without extending isIdle()
+  // would park the render loop while that effect is still alive, so it would
+  // draw for at most one frame and then vanish. `vortexes` was added after the
+  // idle gating landed; this catches the next one automatically.
+  it('isIdle accounts for every effect collection the engine holds', () => {
+    const collections = Object.entries(new ParticleEngine())
+      .filter(([, v]) => Array.isArray(v))
+      .map(([k]) => k);
+    expect(collections.length).toBeGreaterThan(0);
+    collections.forEach((key) => {
+      const engine = new ParticleEngine();
+      engine[key].push({ alpha: 1 });
+      expect(engine.isIdle(), `isIdle() ignores this.${key}`).toBe(false);
+    });
+  });
+
+  it('reset clears every collection the engine holds', () => {
+    const engine = new ParticleEngine();
+    Object.entries(engine)
+      .filter(([, v]) => Array.isArray(v))
+      .forEach(([key]) => engine[key].push({ alpha: 1 }));
+    engine.reset();
+    expect(engine.isIdle()).toBe(true);
+  });
+
   it('reset clears everything back to idle', () => {
     const e = new ParticleEngine();
     e.spawnLaserBeam(1, 1, 'vertical', 100, 100, '#fff');

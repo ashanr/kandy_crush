@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStars, readEntry, isCompleted, isUnlocked, recordWin } from './progression.js';
+import { computeStars, readEntry, isCompleted, isUnlocked, recordWin, totalStars, maxStars } from './progression.js';
 import { LEVELS } from '../data/levels.js';
 
 const jellyLevel = LEVELS.find((l) => l.objective.type === 'jelly');
@@ -110,5 +110,36 @@ describe('level balance invariants', () => {
         expect(l.jellyLayout.flat().some((v) => v > 0)).toBe(true);
       }
     });
+  });
+});
+
+describe('totalStars / maxStars', () => {
+  it('is zero on a fresh save', () => {
+    expect(totalStars({}, LEVELS)).toBe(0);
+  });
+
+  it('sums stars across levels', () => {
+    const progress = {
+      [LEVELS[0].id]: { completed: true, stars: 3, bestScore: 1 },
+      [LEVELS[1].id]: { completed: true, stars: 2, bestScore: 1 },
+    };
+    expect(totalStars(progress, LEVELS)).toBe(5);
+  });
+
+  it('counts a cleared-but-starless level as zero rather than skipping it', () => {
+    const progress = { [LEVELS[0].id]: { completed: true, stars: 0, bestScore: 1 } };
+    expect(totalStars(progress, LEVELS)).toBe(0);
+  });
+
+  it('ignores entries for levels that no longer exist', () => {
+    expect(totalStars({ 999: { completed: true, stars: 3 } }, LEVELS)).toBe(0);
+  });
+
+  it('never exceeds the maximum', () => {
+    const progress = Object.fromEntries(
+      LEVELS.map((l) => [l.id, { completed: true, stars: 3, bestScore: 1 }]),
+    );
+    expect(totalStars(progress, LEVELS)).toBe(maxStars(LEVELS));
+    expect(maxStars(LEVELS)).toBe(LEVELS.length * 3);
   });
 });

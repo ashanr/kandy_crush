@@ -45,6 +45,21 @@ export function isUnlocked(progress, levels, idx) {
   return previous ? isCompleted(progress, previous.id) : false;
 }
 
+/**
+ * Stars earned across every level, and the maximum obtainable.
+ *
+ * Per-level stars were shown on each map node but never summed, so the player
+ * had no single number for how far along they are — the figure the saga map is
+ * ultimately played for.
+ */
+export function totalStars(progress, levels) {
+  return levels.reduce((sum, level) => sum + readEntry(progress, level.id).stars, 0);
+}
+
+export function maxStars(levels) {
+  return levels.length * 3;
+}
+
 /** Merges a win into the saved progress, keeping the player's best result. */
 export function recordWin(progress, level, score) {
   const existing = readEntry(progress, level.id);

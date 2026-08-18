@@ -8,7 +8,7 @@ This document provides a comprehensive overview of all features currently built 
 
 - **Dynamic 8x8 Grid**: Full grid management supporting candy spawning, movement, matching, and falling gravity physics.
 - **Touch & Swipe Controls**: Intuitive mobile drag-and-swipe interaction for swapping adjacent tiles.
-- **Invalid Swap Rejection**: A swap that creates no match (and involves no special candy) is rejected before any state change — the board never visibly moves. A rejection sound and haptic fire, and both tiles play a 320ms shake (`.candy-cell.rejected`) so the refusal reads as "that move isn't legal" rather than as a dropped input. There is still no "swap forward then animate back" motion; the candies shake in place.
+- **Invalid Swap Rejection**: A swap that creates no match (and involves no special candy) is rejected before any state change — the board state never moves. A rejection sound and haptic fire, and both tiles play a 420ms directional slide-and-bounce (`.candy-cell.rejected-{left,right,up,down}`): each candy lunges toward the other, collides, and springs back, so the refusal reads as "that move isn't legal" rather than as a dropped input.
 - **Cascading Combo Engine**: Continuous automatic matching of falling candies with increasing score multipliers for multi-stage cascades (capped at 25 iterations as a safety guard against pathological refills).
 - **No-Match Detection & Reshuffle**: Automatic detection when no valid moves remain on the board, triggering an automatic board reshuffle.
 
@@ -41,6 +41,15 @@ This document provides a comprehensive overview of all features currently built 
   - **Any other pairing** (e.g. Jelly Fish + Striped, Jelly Fish + Wrapped, Jelly Fish + Jelly Fish): falls back to each special detonating its own individual effect at its own position — the move always does *something*, it just doesn't yet have a bespoke combo shape. See `docs/missing_features.md` for the flavor-specific combos still to design (e.g. "Striped Fish", fish swarms).
 - **Chain Reactions**: Any special candy caught inside another special's blast radius (from a match cascade OR a combo swap) also detonates, recursively.
 
+### Blockers
+
+- **Licorice Swirl** (`BLOCKER.LICORICE`): occupies a cell instead of a candy. Carries no `color`, which makes it unmatchable for free — `findMatches` keys entirely off `cell?.color` and a run of colourless cells fails its `prevColor` guard. Cannot be swapped, and **absorbs striped beams**: a horizontal/vertical clear stops at the swirl rather than passing through, so a licorice wall genuinely shields what is behind it. Removed only by collateral damage from an adjacent clear.
+- **Chocolate** (`BLOCKER.CHOCOLATE`): same unmatchable/unswappable rules, plus growth. If a move destroys no chocolate, `spreadChocolate()` picks one legal growth site across *all* chocolate blocks (so growth isn't biased toward scan order) and consumes an adjacent candy. It will not eat another blocker or a locked candy. That "punish inaction" pressure is the point of the hazard — without it chocolate is a wall you can ignore.
+- **Locked candies** (`cell.locked`): a normal candy in a cage. It cannot be swapped, but it *can* be part of a match — and when it is, the cage takes the hit and the candy survives, freed for the next move. A freed lock does not also smash a neighbouring blocker; the hit was spent on the cage.
+- **Deadlock safety**: `swapCreatesMatch` rejects unswappable pairs, so deadlock detection and the idle hint can't report a "legal move" that `attemptMove` would refuse.
+- **Deviation from the original**: blockers fall with gravity here. Real chocolate is anchored, but anchoring it means candies can no longer refill the column beneath it, leaving permanent holes — a far larger change to gravity and refill than the hazard warrants.
+- Used by **Marshmallow Marsh** (a licorice wall splitting the board) and **Cocoa Quarry** (two chocolate seeds plus four caged candies).
+
 ### Candy Bombs (timed hazard)
 
 - **Countdown hazard** (`finalizeMove()` in `board.js`): levels may seed N bombs with a fuse length (`initialBombs` / `bombTimer` in `src/data/levels.js`; currently "Chocolate Chasm" at 3 bombs / 12 moves). Every valid move — including booster uses — decrements every bomb on the board. Any bomb reaching zero ends the level immediately in a loss.
@@ -57,7 +66,11 @@ This document provides a comprehensive overview of all features currently built 
 - **3D stepping-stone nodes**: spherical gradient candy buttons with inner highlight/shadow and a thick base edge that flattens on press for a tactile push; locked nodes render as dimmed grey stones, and the current node glows and pulses.
 - **Player marker**: a bouncing 🍬 sits above the current level. It's a sibling of the node rather than a child, so it bobs independently instead of inheriting the node's pulse and hover scaling.
 - **Frosted glass header**: absolutely positioned over the scroll region (not a stacked flex sibling) so the map genuinely slides underneath and blurs via `backdrop-filter`, with a bubbly 3D candy text-shadow on the title.
+- **Return-from-win celebration**: beating a level used to produce a map identical to opening the app cold — `SagaMap` fully remounts and every node replayed the same staggered pop-in regardless of what had just happened. `App` now hands the map a `celebration` payload on a win, and the map plays the payoff: the newly-earned stretch of trail draws itself (animated `pathLength`), the stars just earned drop into the beaten node one at a time, and the level it unlocked bursts open with a glow. The view auto-scrolls to the midpoint between the two nodes so the whole sequence happens on screen. Only wins celebrate — losing or exiting mid-level returns to a quiet map.
+- **Total star counter**: the header carries a running `★ 14/30`. Per-level stars were shown on every node but never summed, so the player had no single figure for overall progress; it pulses when a win adds to it.
+- **Anchored Play button**: a bottom bar naming the current level (`Level 6 · Peppermint Peaks`) starts it directly, so continuing no longer requires locating the right node on a scrolling map. It slides away during the celebration so it doesn't compete with the unlock animation, and the scroll area reserves space for it so no node is trapped underneath.
 - **Auto-scroll to current level**: on every visit to the home screen, the map automatically centers the player's current (next unlocked, not-yet-starred) level, instead of always opening at level 1.
+- **Cleared trail keyed on completion**: the gold ribbon covers levels actually cleared rather than levels that earned a star — a level beaten for zero stars is still behind you, and the ribbon previously stopped short of it.
 - **Accessible level nodes**: each node carries an `aria-label` conveying level number, name, star count, and lock state.
 - **Level Unlock Progression**: Levels unlock sequentially as previous levels are completed.
 - **Star Rating System**: Calculates 1-star, 2-star, or 3-star ratings based on level score thresholds.
@@ -116,7 +129,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ## ✅ 8. Automated Test Coverage
 
-- **122 Vitest unit tests across 7 files:**
+- **151 Vitest unit tests across 7 files:**
   - `src/data/levels.test.js` (46) — level invariants: ids, thresholds, objective/layout agreement, bomb fuse sanity, theme coverage.
   - `src/utils/particles.test.js` (9) — idle detection and the activity notification that restarts a parked render loop.
   - `src/utils/storage.test.js` (6) — guarded persistence against both a working and a throwing `localStorage`.
@@ -151,12 +164,25 @@ This document provides a comprehensive overview of all features currently built 
   - Candies now animate a bright flash-and-blur **exit** transition (`AnimatePresence`) when cleared, rather than being replaced instantly with no transition.
 - **Premium 3D Candy Art**:
   - Glossy SVG candy assets with multi-layered gradients (inner top highlight, inner bottom shadow, and drop shadow).
-  - Sri Lankan candy motifs (Kalu Dodol, Kavum, Kokis) built directly into the vector designs.
+  - Sri Lankan candy motifs (Kalu Dodol, Kavum, Kokis, Aggala) built directly into the vector designs.
+  - **Six mutually distinguishable silhouettes** — kavum dome, kokis star, dodol diamond, hexagon, rounded square, aggala ball. Purple was a second 10-vertex star almost identical to yellow's, so the two were separable by hue alone; shape-coding only helps colourblind players when the shapes actually differ.
   - **Candy size is derived from the measured cell** (96% of `gridMetrics.cellW/cellH`) rather than a fixed pixel value. It was hardcoded at 42px while the cell scales with board width, so the proportion drifted — 90% of the tile on a 406px board but only 75% at the 480px cap, leaving a dead ring around every candy that widened with screen size.
 - **Board surface**:
   - **Checkerboard tile sockets**: alternating light/dark cells with an inset shadow, keyed to `(row + col)` so the pattern stays with the grid slot rather than the candy. The previous 3%-white cell background was effectively invisible, leaving candies reading as loose sprites on frosted glass instead of sitting in a grid.
   - The board panel is a darkened purple gradient rather than 6% white, giving the candies something to read against.
   - **Drop-in refills**: new candies enter from above the tile (`initial={{ y: -46 }}`) instead of popping in place.
+  - **FX are no longer clipped by the board**: `.game-grid` is `overflow: visible`. Score popups, combo labels and shatter shards are absolutely-positioned children of the grid that travel outward and upward from their cell, so a "+240" earned on the top row — or shards from any edge cell — used to be sliced off at the panel border. Nothing depended on the clip; the gloss pseudo-element is already inset and the particle canvas is sized exactly to the padding box.
+- **Additional Visual Polish**:
+  - **Combo Reaction Labels**: Escalating praise text ("Sweet!", "Tasty!", "Divine!", "Sugar Crush!") floats dynamically based on cascade chains.
+  - **Board Camera Shake**: Subtle physical screen shaking for high-impact explosions (Wrapped candies, Color Bombs, big cascades).
+  - **Striped Candy Energy Shimmer**: Continuous light beams sweep across striped candies in their alignment direction.
+  - **Invalid Swap Slide-and-Bounce**: Candies slide toward each other and bounce back when attempting an illegal move, improving tactile feedback.
+  - **Star Threshold Burst**: Star markers flash and pulse with particles when specific score tiers are crossed.
+  - **Jelly Clear Splatter**: Translucent cyan glass fragments fly outward when a jelly tile is destroyed.
+  - **Color Bomb Vortex**: Spiral energy particles swirl inward before the Color Bomb lightning zap fires.
+  - **Score Bump**: the HUD score plays a scale-bounce whenever it increases, so a gain is noticed rather than silently replacing the previous number. The digits themselves still snap to the new value — there is no tweened count-up.
+  - **Wrapped Candy Pulsing Glow**: A breathing pulse overlay visually hints at the contained explosive energy inside wrapped candies.
+  - **Background Reactivity**: The board's background dynamically flashes brighter during big combos and subtly darkens with a red pulse when Candy Bomb timers hit critical levels (≤2).
 
 ---
 
@@ -170,7 +196,7 @@ This document provides a comprehensive overview of all features currently built 
 
 ## 🇱🇰 12. Sinhala Voice Announcer & Localization (`src/utils/sound.js`, `public/voices/`)
 
-- **Colloquial Sinhala catchphrases with 3 random variants each**: 36 clips total (3 variants × 6 triggers × 2 genders), so the announcer doesn't repeat itself. Phrasing is deliberately colloquial rather than dictionary Sinhala — e.g. *"නියමයි මචං!"* / *"හොඳයි හොඳයි!"* / *"සුපිරි!"* for a plain match, *"අම්මෝ! වැඩක් නෑ කතා කරලා!"* / *"බලාගෙන! සුපිරිම සුපිරි!"* / *"මචං මේක නම් ලොකු වැඩක්!"* for the biggest combos, plus win/lose sets.
+- **Colloquial Sinhala catchphrases with 3 random variants each**: 36 generated clips (3 variants × 6 triggers × 2 genders), so the announcer doesn't repeat itself. `public/voices/` holds 48 files: the 36 generated variants plus a legacy un-suffixed clip per trigger per gender, kept as the decode fallback (see "Graceful degradation" below). `VARIANTS_PER_KEY` in `sound.js` is what the playback path actually reads. Phrasing is deliberately colloquial rather than dictionary Sinhala — e.g. *"නියමයි මචං!"* / *"හොඳයි හොඳයි!"* / *"සුපිරි!"* for a plain match, *"අම්මෝ! වැඩක් නෑ කතා කරලා!"* / *"බලාගෙන! සුපිරිම සුපිරි!"* / *"මචං මේක නම් ලොකු වැඩක්!"* for the biggest combos, plus win/lose sets.
 - **Not** the browser's Web Speech API — implementation uses **pre-rendered `.mp3` voice clips** (`public/voices/{male,female}/<key>_<n>.mp3`, generated by `scripts/generate_all_voices.py` via `edge-tts`, run with `npm run voices`).
 - **AudioBuffer playback pipeline**: clips are `fetch`ed and `decodeAudioData`'d into `AudioBuffer`s (lazily, on first audio unlock) and played via `AudioBufferSourceNode` rather than `<audio>` elements. This is what makes per-clip reverb, BGM ducking, and overlapping replay possible — `HTMLAudioElement` sits outside the Web Audio graph and can only be bridged once per element.
 - **Reverb on big moments**: `elakiri`, `wedak_na`, and `win` route through a `ConvolverNode` fed by a procedurally-generated impulse response (no external IR file to ship), so large combos sound distinctly bigger than an ordinary match.

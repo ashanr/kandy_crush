@@ -15,6 +15,15 @@ import {
   useHammerBooster,
   useColorBombBooster,
   activateSpecial,
+  spawnAndDetonateStriped,
+  BLOCKER,
+  createBlocker,
+  isBlocker,
+  isSwappable,
+  spreadChocolate,
+  clearAndCascade,
+  cellKey,
+  finalizeMove,
 } from './board.js';
 
 function boardFromColors(rows) {
@@ -526,5 +535,173 @@ describe('Candy Bombs', () => {
       }
     }
     expect(foundBomb).toBe(false);
+  });
+});
+
+describe('spawnAndDetonateStriped (Sugar Crush cascade)', () => {
+  it('clears a full row when horizontal', () => {
+    const board = baselineBoard();
+    const jelly = createEmptyJellyGrid(8, 8);
+    const res = spawnAndDetonateStriped(board, jelly, [3, 4], true, makeRng(7));
+    expect(res).not.toBeNull();
+    // Every cell is refilled after gravity, so verify by identity: none of row
+    // 3's original candies may survive anywhere on the new board.
+    const survivingIds = new Set(res.board.flat().filter(Boolean).map((c) => c.id));
+    board[3].forEach((cell) => expect(survivingIds.has(cell.id)).toBe(false));
+  });
+
+  it('clears a full column when vertical', () => {
+    const board = baselineBoard();
+    const jelly = createEmptyJellyGrid(8, 8);
+    const res = spawnAndDetonateStriped(board, jelly, [2, 5], false, makeRng(11));
+    const survivingIds = new Set(res.board.flat().filter(Boolean).map((c) => c.id));
+    for (let r = 0; r < 8; r += 1) {
+      expect(survivingIds.has(board[r][5].id)).toBe(false);
+    }
+  });
+
+  it('scores the clear and leaves a full board behind', () => {
+    const board = baselineBoard();
+    const jelly = createEmptyJellyGrid(8, 8);
+    const res = spawnAndDetonateStriped(board, jelly, [0, 0], true, makeRng(3));
+    expect(res.score).toBeGreaterThan(0);
+    expect(res.board.flat().every((c) => c !== null)).toBe(true);
+  });
+
+  it('takes a layer off jelly under the blast', () => {
+    const board = baselineBoard();
+    const jelly = createEmptyJellyGrid(8, 8);
+    jelly[4] = jelly[4].map(() => 2);
+    const res = spawnAndDetonateStriped(board, jelly, [4, 3], true, makeRng(5));
+    expect(res.jellyGrid[4].every((v) => v < 2)).toBe(true);
+  });
+
+  it('does not mutate the board it was given', () => {
+    const board = baselineBoard();
+    const jelly = createEmptyJellyGrid(8, 8);
+    const before = board.map((row) => row.map((c) => c.id));
+    spawnAndDetonateStriped(board, jelly, [1, 1], true, makeRng(9));
+    expect(board.map((row) => row.map((c) => c.id))).toEqual(before);
+  });
+
+  it('returns null for an empty cell rather than throwing', () => {
+    const board = baselineBoard();
+    board[0][0] = null;
+    expect(spawnAndDetonateStriped(board, createEmptyJellyGrid(8, 8), [0, 0], true, makeRng(1))).toBeNull();
+  });
+});
+
+describe('blockers', () => {
+  it('a blocker is not swappable and a plain candy is', () => {
+    expect(isSwappable(createBlocker(BLOCKER.LICORICE))).toBe(false);
+    expect(isSwappable(createBlocker(BLOCKER.CHOCOLATE))).toBe(false);
+    expect(isSwappable(createCandy('red'))).toBe(true);
+    expect(isBlocker(createBlocker(BLOCKER.LICORICE))).toBe(true);
+    expect(isBlocker(createCandy('red'))).toBe(false);
+  });
+
+  it('a locked candy cannot be swapped', () => {
+    const locked = createCandy('red');
+    locked.locked = true;
+    expect(isSwappable(locked)).toBe(false);
+  });
+
+  it('blockers never form a match, even in a row of them', () => {
+    const board = baselineBoard();
+    for (let c = 0; c < 5; c += 1) board[3][c] = createBlocker(BLOCKER.LICORICE);
+    expect(findMatches(board)).toHaveLength(0);
+  });
+
+  it('rejects a swap that involves a blocker', () => {
+    const board = baselineBoard();
+    board[3][3] = createBlocker(BLOCKER.LICORICE);
+    expect(attemptMove(board, createEmptyJellyGrid(8, 8), [3, 3], [3, 4]).valid).toBe(false);
+  });
+
+  it('rejects a swap that involves a locked candy', () => {
+    const board = boardFromColors([
+      ['red', 'green', 'red', 'red'],
+      ['blue', 'blue', 'yellow', 'blue'],
+      ['green', 'red', 'green', 'green'],
+      ['blue', 'yellow', 'blue', 'yellow'],
+    ]);
+    board[0][1].locked = true;
+    // Swapping (0,1) with (0,2) would otherwise make red-red-red on row 0.
+    expect(attemptMove(board, createEmptyJellyGrid(4, 4), [0, 1], [0, 2]).valid).toBe(false);
+  });
+
+  it('an adjacent clear destroys a blocker', () => {
+    const board = baselineBoard();
+    board[0][0] = createBlocker(BLOCKER.LICORICE);
+    const jelly = createEmptyJellyGrid(8, 8);
+    // Blow up the cell directly below the licorice.
+    const res = clearAndCascade(board, jelly, new Set([cellKey(1, 0)]), makeRng(4));
+    expect(res.blockersDestroyed).toContain(BLOCKER.LICORICE);
+    const stillThere = res.board.flat().some((c) => c && c.blocker === BLOCKER.LICORICE);
+    expect(stillThere).toBe(false);
+  });
+
+  it('a clear frees a locked candy instead of destroying it', () => {
+    const board = baselineBoard();
+    const target = board[4][4];
+    target.locked = true;
+    const res = clearAndCascade(board, createEmptyJellyGrid(8, 8), new Set([cellKey(4, 4)]), makeRng(6));
+    const survivor = res.board.flat().find((c) => c && c.id === target.id);
+    expect(survivor, 'locked candy should survive the hit').toBeDefined();
+    expect(survivor.locked).toBe(false);
+  });
+
+  it('a striped beam stops at licorice instead of passing through', () => {
+    const board = baselineBoard();
+    board[4][5] = createBlocker(BLOCKER.LICORICE);
+    const explosion = new Set();
+    activateSpecial(board, 4, 4, createCandy('red', SPECIAL.STRIPED_H), explosion, new Set(), {});
+    // Reaches the swirl...
+    expect(explosion.has(cellKey(4, 5))).toBe(true);
+    // ...and no further along the row.
+    expect(explosion.has(cellKey(4, 6))).toBe(false);
+    expect(explosion.has(cellKey(4, 7))).toBe(false);
+    // The other direction is unobstructed.
+    expect(explosion.has(cellKey(4, 0))).toBe(true);
+  });
+});
+
+describe('chocolate spread', () => {
+  it('grows into an adjacent candy', () => {
+    const board = baselineBoard();
+    board[4][4] = createBlocker(BLOCKER.CHOCOLATE);
+    const before = board.flat().filter((c) => c?.blocker === BLOCKER.CHOCOLATE).length;
+    const { board: after, spread } = spreadChocolate(board, makeRng(2));
+    expect(spread).not.toBeNull();
+    const now = after.flat().filter((c) => c?.blocker === BLOCKER.CHOCOLATE).length;
+    expect(now).toBe(before + 1);
+  });
+
+  it('is a no-op when there is no chocolate on the board', () => {
+    const board = baselineBoard();
+    const { board: after, spread } = spreadChocolate(board, makeRng(2));
+    expect(spread).toBeNull();
+    expect(after).toBe(board);
+  });
+
+  it('never consumes another blocker or a locked candy', () => {
+    // Chocolate boxed in by licorice on all four sides has nowhere to grow.
+    const board = baselineBoard();
+    board[4][4] = createBlocker(BLOCKER.CHOCOLATE);
+    board[3][4] = createBlocker(BLOCKER.LICORICE);
+    board[5][4] = createBlocker(BLOCKER.LICORICE);
+    board[4][3] = createBlocker(BLOCKER.LICORICE);
+    board[4][5] = createBlocker(BLOCKER.LICORICE);
+    const { spread } = spreadChocolate(board, makeRng(2));
+    expect(spread).toBeNull();
+  });
+
+  it('does not grow on a move that destroyed chocolate', () => {
+    const board = baselineBoard();
+    board[0][0] = createBlocker(BLOCKER.CHOCOLATE);
+    const res = clearAndCascade(board, createEmptyJellyGrid(8, 8), new Set([cellKey(1, 0)]), makeRng(8));
+    expect(res.blockersDestroyed).toContain(BLOCKER.CHOCOLATE);
+    const finalized = finalizeMove(res, makeRng(8));
+    expect(finalized.chocolateSpread).toBeNull();
   });
 });

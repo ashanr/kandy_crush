@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Star, Settings } from 'lucide-react';
 import { LEVELS } from '../data/levels.js';
 import { THEMES } from './DynamicBackground.jsx';
-import { isUnlocked, readEntry } from '../utils/progression.js';
+import { isUnlocked, readEntry, totalStars, maxStars } from '../utils/progression.js';
 import { getAnnouncerVoice, setAnnouncerVoice, toggleMute, getMuteState, unlockAudio, getBGMStyle, setBGMStyle } from '../utils/sound.js';
 
 // Vertical distance between level nodes. Generous enough that the map has real
@@ -18,7 +18,13 @@ const SWAY = 0.28;
 
 const PATH_HEIGHT = PATH_TOP + (LEVELS.length - 1) * LEVEL_SPACING + PATH_BOTTOM_PAD;
 
-export default function SagaMap({ progress, onSelectLevel }) {
+// Celebration beats, in ms from mount. The trail draws first, then the next
+// level cracks open, then control returns to the player.
+const TRAIL_DRAW_MS = 950;
+const UNLOCK_DELAY_MS = 1150;
+const CELEBRATION_TOTAL_MS = 2400;
+
+export default function SagaMap({ progress, celebration, onCelebrationDone, onSelectLevel }) {
   const [showSettings, setShowSettings] = useState(false);
   const [voice, setVoice] = useState(getAnnouncerVoice());
   const [isMuted, setIsMuted] = useState(getMuteState());
@@ -105,14 +111,43 @@ export default function SagaMap({ progress, onSelectLevel }) {
   }, [levelStates]);
 
   // Trail is split so the stretch the player has already cleared reads as a
-  // solid ribbon while the rest stays a faint dotted outline.
+  // solid ribbon while the rest stays a faint dotted outline. Keyed on
+  // completion rather than stars: a level beaten for zero stars is still
+  // behind you, and the ribbon previously stopped short of it.
   const lastClearedIdx = useMemo(() => {
     let last = -1;
-    levelStates.forEach((s) => { if (s.stars > 0) last = s.idx; });
+    levelStates.forEach((s) => { if (readEntry(progress, s.level.id).completed) last = s.idx; });
     return last;
-  }, [levelStates]);
+  }, [levelStates, progress]);
 
   const currentState = levelStates.find((s) => s.isCurrent) ?? null;
+
+  // --- Return-from-win celebration -----------------------------------------
+  // The map fully remounts after every level, and used to replay the identical
+  // staggered pop-in whether you had just taken a level for three stars or
+  // opened the app cold. These drive the payoff: the newly-earned segment of
+  // trail draws itself, then the level it leads to cracks open.
+  const celebratedIdx = useMemo(() => {
+    if (!celebration) return -1;
+    return levelStates.findIndex((s) => s.level.id === celebration.levelId);
+  }, [celebration, levelStates]);
+
+  const isCelebrating = celebratedIdx >= 0;
+  const unlockedIdx = isCelebrating ? celebratedIdx + 1 : -1;
+  // Hold the freshly-drawn segment back from the static ribbon so it can be
+  // animated separately; everything before it is drawn immediately.
+  const staticTrailEnd = isCelebrating
+    ? Math.min(lastClearedIdx, celebratedIdx - 1)
+    : lastClearedIdx;
+
+  useEffect(() => {
+    if (!isCelebrating) return undefined;
+    const timer = window.setTimeout(() => onCelebrationDone?.(), CELEBRATION_TOTAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [isCelebrating, onCelebrationDone]);
+
+  const totalEarned = totalStars(progress, LEVELS);
+  const totalPossible = maxStars(LEVELS);
 
   // Jump straight to the player's current level on open, instead of always
   // landing on level 1 — SagaMap fully remounts each time the player
@@ -121,14 +156,21 @@ export default function SagaMap({ progress, onSelectLevel }) {
   // position around on every progress update while already here.
   useEffect(() => {
     const container = scrollAreaRef.current;
-    const target = levelStates.find((s) => s.isCurrent) ?? levelStates[levelStates.length - 1];
+    // After a win, frame the midpoint between the level just beaten and the one
+    // it unlocks, so the trail drawing between them happens on screen. Landing
+    // on the next level alone would put the whole animation above the fold.
+    const celebrated = celebratedIdx >= 0 ? levelStates[celebratedIdx] : null;
+    const target = celebrated
+      ?? levelStates.find((s) => s.isCurrent)
+      ?? levelStates[levelStates.length - 1];
     if (!container || !target) return undefined;
+    const focusY = celebrated ? target.topPos + LEVEL_SPACING / 2 : target.topPos;
     const timer = window.setTimeout(() => {
       // topPos is relative to .saga-path, which starts below the scroll
       // area's top padding (added to clear the overlaid header) — offsetTop
       // converts it into the container's scroll coordinate space.
       const pathOffset = pathRef.current ? pathRef.current.offsetTop : 0;
-      const scrollTop = Math.max(0, pathOffset + target.topPos - container.clientHeight / 2);
+      const scrollTop = Math.max(0, pathOffset + focusY - container.clientHeight / 2);
       container.scrollTo({ top: scrollTop, behavior: 'smooth' });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -152,7 +194,22 @@ export default function SagaMap({ progress, onSelectLevel }) {
   return (
     <div className="saga-map" onClick={unlockAudio}>
       <div className="saga-header">
-        <h1 className="saga-title">Candy Saga</h1>
+        <div className="saga-title-block">
+          <h1 className="saga-title">Candy Saga</h1>
+          {/* The number the map is actually played for. Per-level stars were
+              shown on each node but never summed. */}
+          <motion.div
+            className="saga-stars-total"
+            key={totalEarned}
+            initial={isCelebrating ? { scale: 1 } : false}
+            animate={isCelebrating ? { scale: [1, 1.3, 1] } : {}}
+            transition={{ delay: 1.0, duration: 0.5 }}
+            aria-label={`${totalEarned} of ${totalPossible} stars earned`}
+          >
+            <Star size={15} fill="#ffd93d" stroke="#ffd93d" />
+            <span>{totalEarned}<span className="saga-stars-max">/{totalPossible}</span></span>
+          </motion.div>
+        </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="settings-btn" onClick={handleToggleMute} type="button" aria-label="Toggle Music">
             {isMuted ? '🔇' : '🎵'}
@@ -200,13 +257,26 @@ export default function SagaMap({ progress, onSelectLevel }) {
                 className="saga-trail-base"
                 points={levelStates.map(({ leftPx, topPos }) => `${leftPx},${topPos}`).join(' ')}
               />
-              {lastClearedIdx > 0 && (
+              {staticTrailEnd > 0 && (
                 <polyline
                   className="saga-trail-done"
                   points={levelStates
-                    .slice(0, lastClearedIdx + 1)
+                    .slice(0, staticTrailEnd + 1)
                     .map(({ leftPx, topPos }) => `${leftPx},${topPos}`)
                     .join(' ')}
+                />
+              )}
+              {/* The stretch just earned, drawn on arrival. */}
+              {isCelebrating && celebratedIdx > 0 && (
+                <motion.polyline
+                  className="saga-trail-done saga-trail-new"
+                  points={levelStates
+                    .slice(celebratedIdx - 1, celebratedIdx + 1)
+                    .map(({ leftPx, topPos }) => `${leftPx},${topPos}`)
+                    .join(' ')}
+                  initial={{ pathLength: 0, opacity: 0.6 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: TRAIL_DRAW_MS / 1000, ease: 'easeOut' }}
                 />
               )}
             </svg>
@@ -229,11 +299,13 @@ export default function SagaMap({ progress, onSelectLevel }) {
           )}
 
           {levelStates.map(({ level, idx, unlocked, stars, bestScore, isCurrent, leftPos, topPos }) => {
+            const justBeaten = idx === celebratedIdx;
+            const justUnlocked = idx === unlockedIdx && unlocked;
             return (
               <motion.button
                 key={level.id}
                 type="button"
-                className={`level-node ${unlocked ? '' : 'locked'} ${isCurrent ? 'current-level' : ''}`}
+                className={`level-node ${unlocked ? '' : 'locked'} ${isCurrent ? 'current-level' : ''} ${justUnlocked ? 'just-unlocked' : ''}`}
                 style={{
                   position: 'absolute',
                   left: `calc(${leftPos}% - ${NODE_SIZE / 2}px)`,
@@ -242,31 +314,62 @@ export default function SagaMap({ progress, onSelectLevel }) {
                 disabled={!unlocked}
                 aria-label={
                   unlocked
-                    ? `Level ${level.id}, ${level.name}${stars > 0 ? `, ${stars} of 3 stars` : ', not yet completed'}`
+                    ? `Level ${level.id}, ${level.name}${stars > 0 ? `, ${stars} of 3 stars` : ', not yet completed'}${bestScore > 0 ? `, best score ${bestScore}` : ''}`
                     : `Level ${level.id}, locked`
                 }
                 onClick={() => unlocked && onSelectLevel(level)}
                 whileHover={unlocked ? { scale: 1.1 } : {}}
                 whileTap={unlocked ? { scale: 0.92 } : {}}
                 initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.05, type: 'spring' }}
+                animate={
+                  justUnlocked
+                    // Held shut until the trail reaches it, then bursts open.
+                    ? { opacity: 1, scale: [0, 1.35, 0.92, 1], rotate: [0, -8, 4, 0] }
+                    : { opacity: 1, scale: 1 }
+                }
+                transition={
+                  justUnlocked
+                    ? { delay: UNLOCK_DELAY_MS / 1000, duration: 0.65, ease: 'easeOut' }
+                    : { delay: idx * 0.05, type: 'spring' }
+                }
               >
                 {unlocked ? (
                   <>
                     <span className="level-number">{level.id}</span>
                     <div className="level-stars">
-                      {[1, 2, 3].map((s) => (
-                        <Star 
-                          key={s} 
-                          size={14} 
-                          fill={s <= stars ? '#ffd93d' : 'none'} 
-                          stroke={s <= stars ? '#ffd93d' : 'rgba(255,255,255,0.4)'} 
-                          style={{ filter: s <= stars ? 'drop-shadow(0 0 4px rgba(255,217,61,0.6))' : 'none' }}
-                        />
-                      ))}
+                      {[1, 2, 3].map((s) => {
+                        const earned = s <= stars;
+                        const star = (
+                          <Star
+                            size={14}
+                            fill={earned ? '#ffd93d' : 'none'}
+                            stroke={earned ? '#ffd93d' : 'rgba(255,255,255,0.4)'}
+                            style={{ filter: earned ? 'drop-shadow(0 0 4px rgba(255,217,61,0.6))' : 'none' }}
+                          />
+                        );
+                        // On the level just beaten, the stars drop in one by one
+                        // rather than being present from the first frame.
+                        return earned && justBeaten ? (
+                          <motion.span
+                            key={s}
+                            style={{ display: 'inline-flex' }}
+                            initial={{ scale: 0, y: -18, opacity: 0 }}
+                            animate={{ scale: [0, 1.6, 1], y: 0, opacity: 1 }}
+                            transition={{ delay: 0.25 + s * 0.18, duration: 0.5, ease: 'easeOut' }}
+                          >
+                            {star}
+                          </motion.span>
+                        ) : (
+                          <span key={s} style={{ display: 'inline-flex' }}>{star}</span>
+                        );
+                      })}
                     </div>
-                    {bestScore > 0 && <span className="level-best">{bestScore}</span>}
+                    {/* Was a bare number with no indication of what it meant. */}
+                    {bestScore > 0 && (
+                      <span className="level-best" title={`Best score: ${bestScore.toLocaleString()}`}>
+                        🏆 {bestScore.toLocaleString()}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <Lock size={22} color="rgba(255,255,255,0.4)" />
@@ -276,6 +379,32 @@ export default function SagaMap({ progress, onSelectLevel }) {
           })}
         </div>
       </div>
+
+      {/* Anchored call to action — the player no longer has to locate the right
+          node on a scrolling map to keep going. Appears after the celebration
+          so it doesn't compete with the unlock animation. */}
+      <AnimatePresence>
+        {currentState && !isCelebrating && (
+          <motion.div
+            className="saga-play-bar"
+            initial={{ y: 90, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 90, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+          >
+            <button
+              type="button"
+              className="saga-play-btn"
+              onClick={() => onSelectLevel(currentState.level)}
+            >
+              <span className="saga-play-label">ගේම් එක පටන් ගන්න</span>
+              <span className="saga-play-level">
+                Level {currentState.level.id} · {currentState.level.name}
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showSettings && (

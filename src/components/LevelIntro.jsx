@@ -1,4 +1,15 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { SPECIAL } from '../game/board.js';
+
+// One free special seeded onto the board before the first move. Kept to a
+// single pick: the point is a small opening advantage the player chooses, not
+// a stack of freebies that flattens the difficulty curve.
+const START_BOOSTERS = [
+  { key: SPECIAL.STRIPED_H, icon: '🍬', label: 'Striped', hint: 'Clears a row' },
+  { key: SPECIAL.WRAPPED, icon: '🎁', label: 'Wrapped', hint: 'Blows a 3×3' },
+  { key: SPECIAL.BOMB, icon: '🍫', label: 'Color Bomb', hint: 'Wipes a colour' },
+];
 
 /**
  * Pre-level briefing card.
@@ -32,6 +43,7 @@ function objectiveSummary(level) {
 
 export default function LevelIntro({ level, onStart, onCancel }) {
   const objective = objectiveSummary(level);
+  const [startBooster, setStartBooster] = useState(null);
 
   return (
     <div className="result-modal" onClick={onCancel}>
@@ -77,11 +89,31 @@ export default function LevelIntro({ level, onStart, onCancel }) {
           </div>
         )}
 
+        {/* Pre-game booster: tap to arm, tap again to clear. */}
+        <div className="level-intro-boosters">
+          <div className="level-intro-boosters-label">ආරම්භක බූස්ටරය (optional)</div>
+          <div className="level-intro-booster-row">
+            {START_BOOSTERS.map(({ key, icon, label, hint }) => (
+              <button
+                key={key}
+                type="button"
+                className={`start-booster ${startBooster === key ? 'armed' : ''}`}
+                aria-pressed={startBooster === key}
+                onClick={() => setStartBooster((prev) => (prev === key ? null : key))}
+                title={hint}
+              >
+                <span className="start-booster-icon">{icon}</span>
+                <span className="start-booster-label">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="result-actions">
           <button type="button" className="result-retry" onClick={onCancel}>
             සිතියම (Map)
           </button>
-          <button type="button" onClick={onStart}>
+          <button type="button" onClick={() => onStart(startBooster)}>
             පටන් ගන්න (Start)
           </button>
         </div>

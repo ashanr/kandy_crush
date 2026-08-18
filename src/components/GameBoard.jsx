@@ -9,6 +9,8 @@ import {
   useShuffleBooster,
   useColorBombBooster,
   findAnyValidMove,
+  spawnAndDetonateStriped,
+  createBlocker,
   SPECIAL,
 } from '../game/board.js';
 import {
@@ -27,7 +29,7 @@ import {
   playSinhalaLose,
 } from '../utils/sound.js';
 import { getAnnouncement } from '../utils/announcer.js';
-import { measureGrid, cellCenter } from '../utils/gridGeometry.js';
+import { cellCenter } from '../utils/gridGeometry.js';
 import { haptics } from '../utils/haptics.js';
 import AnnouncerOverlay from './AnnouncerOverlay.jsx';
 import BoosterBar from './BoosterBar.jsx';
@@ -40,6 +42,12 @@ import { globalParticleEngine } from '../utils/particles.js';
 import SugarCrush from './SugarCrush.jsx';
 import StarProgress from './StarProgress.jsx';
 import ScorePopup from './ScorePopup.jsx';
+import ComboLabel from './ComboLabel.jsx';
+import CoconutRoll from './CoconutRoll.jsx';
+import BlockerSprite from './BlockerSprite.jsx';
+import { useTimers } from '../hooks/useTimers.js';
+import { useBoardGeometry } from '../hooks/useBoardGeometry.js';
+import { useBoardFX } from '../hooks/useBoardFX.js';
 
 const ROWS = 8;
 const COLS = 8;
@@ -52,6 +60,41 @@ const IDLE_HINT_MS = 5000;
 const LOW_MOVES = 5;
 // Points awarded per unspent move when the objective is cleared early.
 const SUGAR_CRUSH_BONUS_PER_MOVE = 300;
+// How long a combo banner stays readable. Deliberately independent of the move
+// settle time: settle was tightened to ~420ms for a plain match so the board
+// unblocks quickly, but the banner was being cleared on that same timer, so the
+// text flashed past before it could be read.
+const BANNER_MS = 1100;
+// Size of the one-time reprieve offered when moves run out.
+const EXTRA_MOVES = 5;
+// Gap between successive striped-candy detonations in the Sugar Crush cascade.
+const SUGAR_CRUSH_STEP_MS = 240;
+// How long the Coconut Wheel takes to roll its 3 cells before the lasers fire.
+const COCONUT_ROLL_MS = 420;
+
+const SPECIAL_NAMES = {
+  [SPECIAL.STRIPED_H]: 'striped horizontal',
+  [SPECIAL.STRIPED_V]: 'striped vertical',
+  [SPECIAL.WRAPPED]: 'wrapped',
+  [SPECIAL.BOMB]: 'colour bomb',
+  [SPECIAL.JELLY_FISH]: 'jelly fish',
+  [SPECIAL.COCONUT_WHEEL]: 'coconut wheel',
+  [SPECIAL.LUCKY]: 'lucky candy',
+};
+
+/** Spoken description of a cell, for screen readers. */
+function describeCell(cell, jellyLayers, r, c) {
+  const where = `row ${r + 1}, column ${c + 1}`;
+  if (!cell) return `empty, ${where}`;
+  if (cell.blocker) return `${cell.blocker}, blocker, ${where}`;
+
+  const parts = [cell.color];
+  if (cell.special && cell.special !== SPECIAL.NONE) parts.push(SPECIAL_NAMES[cell.special] ?? cell.special);
+  if (cell.locked) parts.push('locked');
+  if (cell.bombTimer !== undefined) parts.push(`bomb, ${cell.bombTimer} moves left`);
+  if (jellyLayers > 0) parts.push(`on ${jellyLayers}-layer jelly`);
+  return `${parts.join(', ')}, ${where}`;
+}
 
 function pickComboSound(specialTypes) {
   if (specialTypes.length === 0) return null;
@@ -64,7 +107,7 @@ function pickComboSound(specialTypes) {
   return null;
 }
 
-export default function GameBoard({ level, onWin, onLose, onExit }) {
+export default function GameBoard({ level, startBooster = null, onWin, onLose, onExit }) {
   const [board, setBoard] = useState(null);
   const [jellyGrid, setJellyGrid] = useState(() => createEmptyJellyGrid(ROWS, COLS));
   const [score, setScore] = useState(0);
@@ -77,47 +120,65 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const gridRef = useRef(null);
   const dragStart = useRef(null);
   const outcomeSignaled = useRef(false);
-  const [shatters, setShatters] = useState([]);
-  const [popups, setPopups] = useState([]);
-  const [gridMetrics, setGridMetrics] = useState(null);
+  const prevScore = useRef(0);
 
-  // Keep board geometry in sync with the responsive grid. Without this the
-  // particle canvas was pinned at 360x360 while the grid stretches to 480px,
-  // so effects on the right/bottom of the board were drawn outside the buffer
-  // and silently discarded on essentially every screen size.
-  useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return undefined;
-    const sync = () => setGridMetrics(measureGrid(el, ROWS, COLS));
-    sync();
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', sync);
-      return () => window.removeEventListener('resize', sync);
-    }
-    const observer = new ResizeObserver(sync);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const { later } = useTimers();
+  const { gridMetrics, candySize } = useBoardGeometry(gridRef, ROWS, COLS);
+  const fx = useBoardFX({ gridMetrics, rows: ROWS, cols: COLS, later });
+  const {
+    shatters, popups, comboLabels, boardShaking, comboFlash, scoreBump,
+  } = fx;
   const [sugarCrushActive, setSugarCrushActive] = useState(false);
   const [sugarCrushBonus, setSugarCrushBonus] = useState(null);
+  const [coconutRoll, setCoconutRoll] = useState(null);
+  // One-time "out of moves" reprieve, and the exit guard.
+  const [outOfMovesOffer, setOutOfMovesOffer] = useState(false);
+  const [pendingLoseScore, setPendingLoseScore] = useState(null);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const extraMovesUsed = useRef(false);
   const pendingWinScore = useRef(null);
   const [hint, setHint] = useState(null);
   const [activityTick, setActivityTick] = useState(0);
   const [rejected, setRejected] = useState(null);
+  // Keyboard navigation. The board was pointer-only, so a keyboard or
+  // switch-access player could not make a move at all — and the idle hint was
+  // highlighting a swap they had no way to perform.
+  const [focusCell, setFocusCell] = useState([0, 0]);
+  const focusRef = useRef(null);
+  const shouldRefocus = useRef(false);
 
-  // Candies used to be a hardcoded 42px while the cell they sit in is derived
-  // from the board width, so they drifted apart: 90% of the tile on a 406px
-  // board but only 75% at the old 480px cap, leaving a dead ring around every
-  // candy that got worse the bigger the screen. Deriving the sprite from the
-  // measured cell keeps the proportion fixed on every device.
-  const candySize = gridMetrics
-    ? Math.max(24, Math.round(Math.min(gridMetrics.cellW, gridMetrics.cellH) * 0.96))
-    : 42;
 
   useEffect(() => {
     const initialJelly = level.jellyLayout ? level.jellyLayout.map((row) => row.slice()) : createEmptyJellyGrid(ROWS, COLS);
     
     let initialBoard = generateBoard(ROWS, COLS);
+
+    // Blockers and locks are stamped onto the generated board by position.
+    // `blockerLayout` is a grid of BLOCKER kinds (or null); `lockLayout` marks
+    // candies that start caged.
+    if (level.blockerLayout || level.lockLayout) {
+      initialBoard = initialBoard.map((row, r) => row.map((cell, c) => {
+        const kind = level.blockerLayout?.[r]?.[c];
+        if (kind) return createBlocker(kind);
+        if (level.lockLayout?.[r]?.[c]) return { ...cell, locked: true };
+        return cell;
+      }));
+    }
+
+    // Free special the player armed on the briefing card, dropped onto a plain
+    // candy so it's available from the very first move.
+    if (startBooster) {
+      const plain = [];
+      initialBoard.forEach((row, r) => row.forEach((cell, c) => {
+        if (cell && !cell.blocker && !cell.locked && cell.special === SPECIAL.NONE) plain.push([r, c]);
+      }));
+      if (plain.length > 0) {
+        const [br, bc] = plain[Math.floor(Math.random() * plain.length)];
+        initialBoard = initialBoard.map((row) => row.map((cell) => ({ ...cell })));
+        initialBoard[br][bc].special = startBooster;
+      }
+    }
+
     if (level.initialBombs) {
       initialBoard = initialBoard.map((row) => row.map((cell) => ({ ...cell })));
       let bombsToSpawn = level.initialBombs;
@@ -139,7 +200,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     setActiveBooster(null);
     setHint(null);
     outcomeSignaled.current = false;
-  }, [level]);
+  }, [level, startBooster]);
 
   // Nudge the player toward a legal move after a spell of inactivity. The
   // search itself already exists for deadlock detection, so this is purely
@@ -147,34 +208,21 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   // adjacent swap on the board, which is far too heavy to do continuously.
   useEffect(() => {
     setHint(null);
-    if (!board || busy || sugarCrushActive) return undefined;
+    if (!board || busy || sugarCrushActive || outOfMovesOffer || confirmExit) return undefined;
     const timer = window.setTimeout(() => {
       setHint(findAnyValidMove(board));
     }, IDLE_HINT_MS);
     return () => window.clearTimeout(timer);
-  }, [board, busy, sugarCrushActive, activityTick]);
+  }, [board, busy, sugarCrushActive, outOfMovesOffer, confirmExit, activityTick]);
 
   const registerActivity = useCallback(() => setActivityTick((t) => t + 1), []);
 
-  // Every deferred callback in a move goes through here so it can be cancelled
-  // on unmount. Exiting to the map mid-cascade previously left ~5 pending
-  // timers that fired setState against an unmounted component.
-  const timers = useRef([]);
-  const later = useCallback((fn, ms) => {
-    const id = window.setTimeout(() => {
-      timers.current = timers.current.filter((t) => t !== id);
-      fn();
-    }, ms);
-    timers.current.push(id);
-    return id;
-  }, []);
-
-  useEffect(() => () => {
-    timers.current.forEach((id) => window.clearTimeout(id));
-    timers.current = [];
-  }, []);
 
   const jellyRemaining = jellyGrid.flat().reduce((sum, v) => sum + v, 0);
+
+  const bombDanger = board
+    ? board.some((row) => row.some((cell) => cell && cell.bombTimer !== undefined && cell.bombTimer <= 2))
+    : false;
 
   const handleSugarCrushDone = useCallback(() => {
     setSugarCrushActive(false);
@@ -184,8 +232,73 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
     }
   }, [onWin]);
 
+  /**
+   * Cashes each unspent move in as a striped candy that spawns and detonates on
+   * the board, one after another.
+   *
+   * Scoring stays the flat per-move rate the star thresholds were calibrated
+   * against — which is also how the original works, where every leftover move
+   * becomes one striped candy worth a fixed amount. The detonations are the
+   * spectacle; the board is already won, so the clearing they cause is free.
+   */
+  const runSugarCrushCascade = useCallback(
+    (startBoard, startJelly, startScore, leftover, onDone) => {
+      let liveBoard = startBoard;
+      let liveJelly = startJelly;
+      let liveScore = startScore;
+      let remaining = leftover;
+
+      const step = () => {
+        if (remaining <= 0) {
+          onDone(liveScore);
+          return;
+        }
+
+        const candidates = [];
+        liveBoard.forEach((row, r) => row.forEach((cell, c) => {
+          if (cell) candidates.push([r, c]);
+        }));
+
+        if (candidates.length > 0) {
+          const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
+          const horizontal = Math.random() < 0.5;
+          const res = spawnAndDetonateStriped(liveBoard, liveJelly, [r, c], horizontal);
+          if (res) {
+            liveBoard = res.board;
+            liveJelly = res.jellyGrid;
+            setBoard(liveBoard);
+            setJellyGrid(liveJelly);
+            if (gridMetrics) {
+              const { x, y } = cellCenter(gridMetrics, r, c);
+              globalParticleEngine.spawnLaserBeam(
+                x, y,
+                horizontal ? 'horizontal' : 'vertical',
+                gridMetrics.width, gridMetrics.height,
+                '#ffd93d',
+              );
+            }
+            playLaser();
+            haptics.combo();
+          }
+        }
+
+        // The score climbs one striped candy at a time, so the bonus is watched
+        // being earned rather than appearing as a single jump.
+        liveScore += SUGAR_CRUSH_BONUS_PER_MOVE;
+        setScore(liveScore);
+        fx.bumpScore(200);
+
+        remaining -= 1;
+        later(step, SUGAR_CRUSH_STEP_MS);
+      };
+
+      step();
+    },
+    [gridMetrics, later],
+  );
+
   const checkOutcome = useCallback(
-    (nextScore, nextMoves, nextJelly, bombExploded = false) => {
+    (nextScore, nextMoves, nextJelly, bombExploded = false, nextBoard = null) => {
       if (outcomeSignaled.current) return;
       
       if (bombExploded) {
@@ -211,11 +324,21 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         playSinhalaWin();
         const leftover = Math.max(0, movesRemaining);
         const bonus = leftover * SUGAR_CRUSH_BONUS_PER_MOVE;
-        const finalScore = nextScore + bonus;
         setSugarCrushBonus({ moves: leftover, bonus });
-        setScore(finalScore);
-        pendingWinScore.current = finalScore;
-        setSugarCrushActive(true);
+
+        const celebrate = (finalScore) => {
+          pendingWinScore.current = finalScore;
+          setSugarCrushActive(true);
+        };
+
+        if (leftover > 0 && nextBoard) {
+          // Hold input while the cascade plays itself out.
+          setBusy(true);
+          runSugarCrushCascade(nextBoard, nextJelly, nextScore, leftover, celebrate);
+        } else {
+          setScore(nextScore + bonus);
+          celebrate(nextScore + bonus);
+        }
       };
 
       // Jelly levels end the moment the objective is met — that IS the goal.
@@ -234,42 +357,44 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
           win(nextMoves);
           return;
         }
+
+        // Running out of moves used to be an immediate, final loss. Offer a
+        // one-time extension first — the beat where a level looks lost and
+        // isn't is most of the drama in a match-3. `outcomeSignaled` stays
+        // false so a genuine loss can still be signalled once the offer is
+        // declined or spent.
+        if (!extraMovesUsed.current) {
+          setPendingLoseScore(nextScore);
+          setOutOfMovesOffer(true);
+          return;
+        }
+
         outcomeSignaled.current = true;
         playSinhalaLose();
         onLose?.(nextScore);
       }
     },
-    [level, onWin, onLose],
+    [level, onWin, onLose, runSugarCrushCascade],
   );
 
-  const triggerFX = useCallback((posA, posB, result, specialTypes) => {
-    const metrics = gridMetrics;
-    if (!metrics) return;
+  const acceptExtraMoves = useCallback(() => {
+    extraMovesUsed.current = true;
+    setOutOfMovesOffer(false);
+    setPendingLoseScore(null);
+    setMovesLeft(EXTRA_MOVES);
+    setMessage(`+${EXTRA_MOVES} moves!`);
+    later(() => setMessage((m) => (m === `+${EXTRA_MOVES} moves!` ? null : m)), BANNER_MS);
+    playSpecialCreate();
+    haptics.special();
+  }, [later]);
 
-    const posACenter = cellCenter(metrics, posA[0], posA[1]);
+  const declineExtraMoves = useCallback(() => {
+    setOutOfMovesOffer(false);
+    outcomeSignaled.current = true;
+    playSinhalaLose();
+    onLose?.(pendingLoseScore ?? score);
+  }, [onLose, pendingLoseScore, score]);
 
-    // Particle Shards
-    globalParticleEngine.spawnMatchBurst(posACenter.x, posACenter.y, '#ffd93d', 18);
-
-    // Special FX — beams span the full canvas, which now matches the grid.
-    if (specialTypes.includes(SPECIAL.STRIPED_H)) {
-      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'horizontal', metrics.width, metrics.height, '#38bdf8');
-    }
-    if (specialTypes.includes(SPECIAL.STRIPED_V)) {
-      globalParticleEngine.spawnLaserBeam(posACenter.x, posACenter.y, 'vertical', metrics.width, metrics.height, '#38bdf8');
-    }
-    if (specialTypes.includes(SPECIAL.WRAPPED)) {
-      globalParticleEngine.spawnWrappedShockwave(posACenter.x, posACenter.y, 140, '#c084fc');
-    }
-    if (specialTypes.includes(SPECIAL.BOMB)) {
-      const targets = [0, 1, 2].map(() => cellCenter(
-        metrics,
-        Math.floor(Math.random() * ROWS),
-        Math.floor(Math.random() * COLS),
-      ));
-      globalParticleEngine.spawnLightningArc(posACenter.x, posACenter.y, targets, '#ffd93d');
-    }
-  }, [gridMetrics]);
 
   const performMove = useCallback(
     (posA, posB) => {
@@ -284,98 +409,123 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         playInvalid();
         haptics.invalid();
         setSelected(null);
-        // Shake the pair so a rejected swap reads as "not legal" rather than
-        // as a dropped input. Duration matches the reject-shake keyframes.
-        setRejected([posA, posB]);
-        later(() => setRejected(null), 320);
+        // Compute which direction each cell should slide toward the other.
+        const dr = posB[0] - posA[0];
+        const dc = posB[1] - posA[1];
+        const dirA = dc > 0 ? 'right' : dc < 0 ? 'left' : dr > 0 ? 'down' : 'up';
+        const dirB = dc > 0 ? 'left' : dc < 0 ? 'right' : dr > 0 ? 'up' : 'down';
+        setRejected([
+          { r: posA[0], c: posA[1], dir: dirA },
+          { r: posB[0], c: posB[1], dir: dirB },
+        ]);
+        later(() => setRejected(null), 420);
         return;
       }
       setBusy(true);
       playSwap();
       haptics.swap();
 
-      triggerFX(posA, posB, result, specialTypes);
+      // A Coconut Wheel resolves its 3-cell travel and its perpendicular lasers
+      // in one engine step, so the swap read as an instant board-wide clear with
+      // no visible cause. Show the wheel actually rolling first, then let the
+      // rest of the move land. Everything below is deferred by the roll, so the
+      // lasers fire when the wheel arrives rather than before it sets off.
+      const wheelIsA = cellA.special === SPECIAL.COCONUT_WHEEL;
+      const wheelIsB = cellB.special === SPECIAL.COCONUT_WHEEL;
+      let rollDelay = 0;
+      if ((wheelIsA || wheelIsB) && gridMetrics) {
+        const posWheel = wheelIsA ? posA : posB;
+        const posOther = wheelIsA ? posB : posA;
+        const dr = posOther[0] - posWheel[0];
+        const dc = posOther[1] - posWheel[1];
+        // Engine rolls up to 3 cells past the wheel; clamp to the board edge so
+        // the sprite never travels off the grid.
+        const endR = Math.max(0, Math.min(ROWS - 1, posWheel[0] + 3 * dr));
+        const endC = Math.max(0, Math.min(COLS - 1, posWheel[1] + 3 * dc));
+        rollDelay = COCONUT_ROLL_MS;
+        setCoconutRoll({
+          id: `roll-${Date.now()}`,
+          from: cellCenter(gridMetrics, posWheel[0], posWheel[1]),
+          to: cellCenter(gridMetrics, endR, endC),
+        });
+        playLaser();
+      }
 
-      // --- Candy Shatter: diff old board vs new board ---
-      if (board) {
-        const oldIds = new Map();
-        board.forEach((row, r) => row.forEach((cell, c) => {
-          oldIds.set(cell.id, { r, c, color: cell.color });
-        }));
-        const newIds = new Set();
-        result.board.forEach((row) => row.forEach((cell) => {
-          newIds.add(cell.id);
-        }));
-        const destroyed = [];
-        for (const [id, info] of oldIds) {
-          if (!newIds.has(id)) {
-            destroyed.push({ id: `shatter-${id}-${Date.now()}`, color: info.color, col: info.c, row: info.r });
-          }
+      const commitMove = () => {
+        setCoconutRoll(null);
+        fx.spawnMoveParticles(posA, specialTypes);
+
+        fx.spawnShatters(board, result.board);
+
+        // Banner text and the spoken line come from one shared mapping so they
+        // can never disagree (see src/utils/announcer.js).
+        const { banner, voiceKey } = getAnnouncement({
+          specialCount: specialTypes.length,
+          cascadeCount: result.cascadeCount,
+        });
+        setMessage(banner);
+        // Banner clears on its own schedule so a fast board doesn't cut the
+        // text short. Superseded immediately if the next move sets a new one.
+        later(() => setMessage((m) => (m === banner ? null : m)), BANNER_MS);
+        playAnnouncerVoice(voiceKey);
+
+        const comboSound = pickComboSound(specialTypes);
+        if (comboSound) {
+          later(() => {
+            comboSound();
+            haptics.combo();
+          }, 120);
+        } else if (result.cascadeCount > 1) {
+          later(() => {
+            playCombo(result.cascadeCount);
+            haptics.combo();
+          }, 150);
+        } else {
+          playPop();
+          haptics.match();
         }
-        if (destroyed.length > 0) {
-          setShatters((prev) => [...prev, ...destroyed]);
+
+        // Feedback for the move: floating score, combo label, shake/flash and
+        // jelly splatter. None of it feeds back into the rules — see useBoardFX.
+        fx.spawnScorePopup(posA, result.score);
+        fx.spawnComboLabel(posA, result.cascadeCount, specialTypes.length);
+        fx.reactToMove(result.cascadeCount, specialTypes);
+        fx.spawnJellySplatter(jellyGrid, result.jellyGrid);
+
+        const { board: playableBoard, reshuffled } = ensurePlayable(result.board);
+        const nextScore = score + result.score;
+        const nextMoves = movesLeft - 1;
+
+        if (nextScore > prevScore.current) {
+          fx.bumpScore();
+          prevScore.current = nextScore;
         }
-      }
 
-      // Banner text and the spoken line come from one shared mapping so they
-      // can never disagree (see src/utils/announcer.js).
-      const { banner, voiceKey } = getAnnouncement({
-        specialCount: specialTypes.length,
-        cascadeCount: result.cascadeCount,
-      });
-      setMessage(banner);
-      playAnnouncerVoice(voiceKey);
+        setBoard(playableBoard);
+        setJellyGrid(result.jellyGrid);
+        setScore(nextScore);
+        setMovesLeft(nextMoves);
+        setSelected(null);
+        if (reshuffled) setMessage('මාරු වෙනවා...');
 
-      const comboSound = pickComboSound(specialTypes);
-      if (comboSound) {
+        // Input was previously blocked for a flat 550ms on every move, so a plain
+        // 3-match felt sluggish while a six-step cascade got cut off partway
+        // through its animation. Scale the settle time to how much actually
+        // happened: ~420ms for a single match, capped at 1s for long cascades.
+        const settleMs = Math.min(1000, 280 + result.cascadeCount * 140);
+
+        // Unblocking input no longer clears the banner — that is BANNER_MS's
+        // job, so the board can go fast while the text stays readable.
         later(() => {
-          comboSound();
-          haptics.combo();
-        }, 120);
-      } else if (result.cascadeCount > 1) {
-        later(() => {
-          playCombo(result.cascadeCount);
-          haptics.combo();
-        }, 150);
-      } else {
-        playPop();
-        haptics.match();
-      }
+          setBusy(false);
+          checkOutcome(nextScore, nextMoves, result.jellyGrid, result.bombExploded, playableBoard);
+        }, settleMs);
+      };
 
-      // Float the points earned off the swap so the number is attached to the
-      // move that produced it.
-      if (result.score > 0 && gridMetrics) {
-        const { x, y } = cellCenter(gridMetrics, posA[0], posA[1]);
-        setPopups((prev) => [
-          ...prev,
-          { id: `pop-${Date.now()}-${Math.random()}`, x, y, points: result.score, big: result.score >= 500 },
-        ]);
-      }
-
-      const { board: playableBoard, reshuffled } = ensurePlayable(result.board);
-      const nextScore = score + result.score;
-      const nextMoves = movesLeft - 1;
-
-      setBoard(playableBoard);
-      setJellyGrid(result.jellyGrid);
-      setScore(nextScore);
-      setMovesLeft(nextMoves);
-      setSelected(null);
-      if (reshuffled) setMessage('මාරු වෙනවා...');
-
-      // Input was previously blocked for a flat 550ms on every move, so a plain
-      // 3-match felt sluggish while a six-step cascade got cut off partway
-      // through its animation. Scale the settle time to how much actually
-      // happened: ~420ms for a single match, capped at 1s for long cascades.
-      const settleMs = Math.min(1000, 280 + result.cascadeCount * 140);
-
-      later(() => {
-        setMessage(null);
-        setBusy(false);
-        checkOutcome(nextScore, nextMoves, result.jellyGrid, result.bombExploded);
-      }, settleMs);
+      if (rollDelay > 0) later(commitMove, rollDelay);
+      else commitMove();
     },
-    [board, jellyGrid, score, movesLeft, busy, checkOutcome, triggerFX, gridMetrics, later],
+    [board, jellyGrid, score, movesLeft, busy, checkOutcome, fx, gridMetrics, later],
   );
 
   const applyBooster = useCallback(
@@ -402,7 +552,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       later(() => {
         setBusy(false);
-        checkOutcome(nextScore, movesLeft, nextJelly, result.bombExploded);
+        checkOutcome(nextScore, movesLeft, nextJelly, result.bombExploded, result.board);
       }, 400);
     },
     [board, jellyGrid, boosterCounts, busy, score, movesLeft, checkOutcome, later],
@@ -431,6 +581,57 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       setSelected([r, c]);
     }
   };
+
+  // Keyboard play mirrors the tap model exactly: move the cursor with the arrow
+  // keys, Enter/Space to pick a candy up, then Enter/Space on an adjacent one to
+  // swap. Arrowing *while* a candy is selected performs the swap directly, which
+  // is the faster idiom once you know it.
+  const handleCellKeyDown = useCallback((e, r, c) => {
+    const deltas = {
+      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
+    };
+
+    if (deltas[e.key]) {
+      e.preventDefault();
+      const [dr, dc] = deltas[e.key];
+      const nr = Math.max(0, Math.min(ROWS - 1, r + dr));
+      const nc = Math.max(0, Math.min(COLS - 1, c + dc));
+      if (nr === r && nc === c) return;
+
+      if (selected && selected[0] === r && selected[1] === c && !busy) {
+        // Held a candy and pressed a direction — that's the swap.
+        setFocusCell([nr, nc]);
+        shouldRefocus.current = true;
+        performMove([r, c], [nr, nc]);
+        return;
+      }
+      setFocusCell([nr, nc]);
+      shouldRefocus.current = true;
+      registerActivity();
+      return;
+    }
+
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      registerActivity();
+      handleCellTap(r, c);
+      shouldRefocus.current = true;
+      return;
+    }
+
+    if (e.key === 'Escape' && selected) {
+      e.preventDefault();
+      setSelected(null);
+    }
+  }, [selected, busy, performMove, registerActivity]);
+
+  // Move DOM focus to follow the roving tabindex, but only in response to a key
+  // press — stealing focus on every board update would fight the pointer.
+  useEffect(() => {
+    if (!shouldRefocus.current) return;
+    shouldRefocus.current = false;
+    focusRef.current?.focus({ preventScroll: true });
+  }, [focusCell, board]);
 
   const handlePointerDown = (r, c, e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -469,10 +670,23 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   return (
     <div className="game-board-screen">
       <DynamicBackground levelId={level.id} />
+      {/* Reactivity is painted by this overlay rather than by filtering the
+          whole screen — see .board-reactivity-overlay in index.css. */}
+      {comboFlash && <div className="board-reactivity-overlay combo" />}
+      {bombDanger && <div className="board-reactivity-overlay danger" />}
       <div className="game-hud">
-        <button type="button" className="hud-btn" onClick={onExit}>Exit</button>
+        {/* Exit used to discard a level in progress instantly, with no prompt.
+            A fresh board has nothing to lose, so only guard once the player has
+            actually invested moves. */}
+        <button
+          type="button"
+          className="hud-btn"
+          onClick={() => (movesLeft < level.moveLimit ? setConfirmExit(true) : onExit?.())}
+        >
+          Exit
+        </button>
         <div className="hud-stat">
-          Score: {score}
+          Score: <span className={`score-value ${scoreBump ? 'score-bump' : ''}`}>{score}</span>
           {level.objective.type === 'score' ? ` / ${level.objective.target}` : ''}
         </div>
         <div className={`hud-stat ${movesLeft <= LOW_MOVES ? 'low-moves' : ''}`}>
@@ -488,8 +702,12 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       <div className="board-stage">
         <div
           ref={gridRef}
-          className="game-grid"
+          className={`game-grid ${boardShaking ? 'board-shake' : ''}`}
           style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
+          role="grid"
+          aria-label={`Game board, ${ROWS} by ${COLS}. Arrow keys to move, Enter to pick up and swap.`}
+          aria-rowcount={ROWS}
+          aria-colcount={COLS}
         >
           {gridMetrics && <ParticleCanvas width={gridMetrics.width} height={gridMetrics.height} />}
           <AnimatePresence mode="popLayout">
@@ -497,9 +715,19 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
               row.map((cell, c) => (
                 <div
                   key={cell.id}
-                  className={`candy-cell ${(r + c) % 2 === 1 ? 'tile-dark' : ''} ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''} ${hint && hint.some(([hr, hc]) => hr === r && hc === c) ? 'hint' : ''} ${rejected && rejected.some(([rr, rc]) => rr === r && rc === c) ? 'rejected' : ''}`}
+                  className={`candy-cell ${(r + c) % 2 === 1 ? 'tile-dark' : ''} ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''} ${hint && hint.some(([hr, hc]) => hr === r && hc === c) ? 'hint' : ''} ${rejected ? (() => { const m = rejected.find((cell) => cell.r === r && cell.c === c); return m ? `rejected-${m.dir}` : ''; })() : ''} ${focusCell[0] === r && focusCell[1] === c ? 'kb-focus' : ''}`}
                   onPointerDown={(e) => handlePointerDown(r, c, e)}
                   onPointerUp={handlePointerUp}
+                  // Roving tabindex: the grid is one tab stop, and the arrow
+                  // keys move within it. 64 separate tab stops would make the
+                  // board impossible to tab past.
+                  tabIndex={focusCell[0] === r && focusCell[1] === c ? 0 : -1}
+                  ref={focusCell[0] === r && focusCell[1] === c ? focusRef : null}
+                  role="gridcell"
+                  aria-label={describeCell(cell, jellyGrid[r][c], r, c)}
+                  aria-selected={Boolean(selected && selected[0] === r && selected[1] === c)}
+                  onKeyDown={(e) => handleCellKeyDown(e, r, c)}
+                  onFocus={() => setFocusCell([r, c])}
                 >
                   {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
                   {/* Refills fall in from above the tile instead of popping in
@@ -515,15 +743,23 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
                     whileTap={{ scale: 0.9, rotate: -5 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                   >
-                    {/* bombTimer must be forwarded: the engine ticks it down and
-                        ends the level at zero, so without it the countdown UI in
-                        CandySprite never renders and the loss has no visible cause. */}
-                    <CandySprite
-                      color={cell.color}
-                      special={cell.special}
-                      bombTimer={cell.bombTimer}
-                      size={candySize}
-                    />
+                    {cell.blocker ? (
+                      <BlockerSprite kind={cell.blocker} size={candySize} />
+                    ) : (
+                      <>
+                        {/* bombTimer must be forwarded: the engine ticks it down
+                            and ends the level at zero, so without it the countdown
+                            UI in CandySprite never renders and the loss has no
+                            visible cause. */}
+                        <CandySprite
+                          color={cell.color}
+                          special={cell.special}
+                          bombTimer={cell.bombTimer}
+                          size={candySize}
+                        />
+                        {cell.locked && <div className="candy-lock" aria-hidden="true">⛓</div>}
+                      </>
+                    )}
                   </motion.div>
                 </div>
               )),
@@ -540,7 +776,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
                 color={s.color}
                 x={x}
                 y={y}
-                onComplete={() => setShatters((prev) => prev.filter((item) => item.id !== s.id))}
+                onComplete={() => fx.dismissShatter(s.id)}
               />
             );
           })}
@@ -552,9 +788,29 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
               y={p.y}
               points={p.points}
               big={p.big}
-              onComplete={() => setPopups((prev) => prev.filter((item) => item.id !== p.id))}
+              onComplete={() => fx.dismissPopup(p.id)}
             />
           ))}
+
+          {comboLabels.map((cl) => (
+            <ComboLabel
+              key={cl.id}
+              x={cl.x}
+              y={cl.y}
+              tier={cl.tier}
+              onComplete={() => fx.dismissComboLabel(cl.id)}
+            />
+          ))}
+
+          {coconutRoll && (
+            <CoconutRoll
+              key={coconutRoll.id}
+              from={coconutRoll.from}
+              to={coconutRoll.to}
+              size={candySize}
+              durationMs={COCONUT_ROLL_MS}
+            />
+          )}
         </div>
       </div>
 
@@ -564,11 +820,68 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         onSelect={(key) => setActiveBooster((prev) => (prev === key ? null : key))}
       />
 
+      {/* Score, moves and the combo banner are all conveyed visually only.
+          This mirrors them to assistive tech without duplicating them on screen. */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {message ? `${message}. ` : ''}
+        Score {score}
+        {level.objective.type === 'score' ? ` of ${level.objective.target}` : ''}
+        , {movesLeft} moves left
+        {level.objective.type === 'jelly' ? `, ${jellyRemaining} jelly remaining` : ''}
+      </div>
+
       <AnnouncerOverlay message={message} />
 
       {/* Sugar Crush Win Celebration */}
       {sugarCrushActive && (
         <SugarCrush bonus={sugarCrushBonus} onComplete={handleSugarCrushDone} />
+      )}
+
+      {outOfMovesOffer && (
+        <div className="result-modal">
+          <motion.div
+            className="result-card second-chance-card"
+            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+          >
+            <div className="second-chance-icon">🔄</div>
+            <h2>Moves ඉවරයි!</h2>
+            <p className="second-chance-sub">
+              තව {EXTRA_MOVES}ක් ගන්නද? (Out of moves — take {EXTRA_MOVES} more?)
+            </p>
+            <div className="result-actions">
+              <button type="button" className="result-retry" onClick={declineExtraMoves}>
+                නෑ (Give up)
+              </button>
+              <button type="button" onClick={acceptExtraMoves}>
+                +{EXTRA_MOVES} Moves
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {confirmExit && (
+        <div className="result-modal">
+          <motion.div
+            className="result-card"
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+          >
+            <h2>ඉවත් වෙනවද? 🚪</h2>
+            <p>මේ ගේම් එකේ progress නැති වෙනවා.<br />(Leaving now loses this attempt.)</p>
+            <div className="result-actions">
+              <button type="button" className="result-retry" onClick={() => setConfirmExit(false)}>
+                දිගටම (Keep playing)
+              </button>
+              <button type="button" onClick={() => { setConfirmExit(false); onExit?.(); }}>
+                ඉවත් වෙන්න (Exit)
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   );

@@ -1,3 +1,5 @@
+import { BLOCKER } from '../game/board.js';
+
 function buildJellyRing(rows, cols, layers = 1) {
   const layout = Array.from({ length: rows }, () => Array(cols).fill(0));
   for (let r = 0; r < rows; r += 1) {
@@ -50,6 +52,25 @@ function buildJellyCorners(rows, cols, size = 3, layers = 1) {
 // Full-board coverage. Used as the finale.
 function buildJellyFull(rows, cols, layers = 1) {
   return Array.from({ length: rows }, () => Array(cols).fill(layers));
+}
+
+/** Empty blocker/lock grid to stamp positions onto. */
+function emptyGrid(rows, cols) {
+  return Array.from({ length: rows }, () => Array(cols).fill(null));
+}
+
+/** Places blockers at explicit [row, col] positions. */
+function blockersAt(rows, cols, kind, positions) {
+  const layout = emptyGrid(rows, cols);
+  positions.forEach(([r, c]) => { layout[r][c] = kind; });
+  return layout;
+}
+
+/** Marks candies that start locked in a cage. */
+function locksAt(rows, cols, positions) {
+  const layout = emptyGrid(rows, cols);
+  positions.forEach(([r, c]) => { layout[r][c] = true; });
+  return layout;
 }
 
 // Targets and star thresholds are calibrated against simulated play through the
@@ -155,6 +176,13 @@ export const LEVELS = [
     objective: { type: 'jelly' },
     moveLimit: 26,
     jellyLayout: buildJellyCorners(8, 8, 3, 2),
+    // A licorice wall across the middle. It can't be matched or swapped, and it
+    // absorbs striped beams, so the two halves of the board have to be worked
+    // separately until the wall is chipped away by adjacent matches.
+    blockerLayout: blockersAt(8, 8, BLOCKER.LICORICE, [
+      [3, 1], [3, 2], [3, 5], [3, 6],
+      [4, 1], [4, 2], [4, 5], [4, 6],
+    ]),
     starThresholds: [3500, 6500, 8200],
   },
   {
@@ -166,6 +194,19 @@ export const LEVELS = [
     initialBombs: 2,
     bombTimer: 16,
     starThresholds: [2400, 5500, 6900],
+  },
+  {
+    id: 11,
+    name: 'Cocoa Quarry',
+    objective: { type: 'jelly' },
+    moveLimit: 28,
+    jellyLayout: buildJellyCheckerboard(8, 8, 1),
+    // Two chocolate seeds. Leave them alone for a turn and they eat a candy —
+    // the level is a race between clearing jelly and containing the spread.
+    blockerLayout: blockersAt(8, 8, BLOCKER.CHOCOLATE, [[0, 0], [7, 7]]),
+    // Four caged candies to break open along the way.
+    lockLayout: locksAt(8, 8, [[2, 2], [2, 5], [5, 2], [5, 5]]),
+    starThresholds: [2600, 5200, 6800],
   },
 ];
 

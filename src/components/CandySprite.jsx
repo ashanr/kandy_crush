@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { SPECIAL } from '../game/board.js';
 
-export default function CandySprite({ color, special, bombTimer, size = 48 }) {
+function CandySprite({ color, special, bombTimer, size = 48 }) {
   const isColorBomb = special === SPECIAL.BOMB;
   const isWrapped = special === SPECIAL.WRAPPED;
   const isStripedH = special === SPECIAL.STRIPED_H;
@@ -139,8 +139,11 @@ export default function CandySprite({ color, special, bombTimer, size = 48 }) {
             </linearGradient>
 
             <filter id="candy-shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.4" />
-              <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#ffffff" floodOpacity="0.2" />
+              {/* One shadow, not two. Every candy on the board instantiates
+                  this filter, and a second chained feDropShadow doubles the
+                  offscreen passes for a highlight that is barely perceptible
+                  at candy size. */}
+              <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.45" />
             </filter>
           </defs>
 
@@ -171,11 +174,25 @@ export default function CandySprite({ color, special, bombTimer, size = 48 }) {
             )}
 
             {color === 'purple' && (
-              /* Royal Star Shape */
-              <path
-                d="M30 8 L35 22 L50 22 L37 31 L42 46 L30 37 L18 46 L23 31 L10 22 L25 22 Z"
-                fill={`url(#grad-${color})`}
-              />
+              /* Aggala Ball — a round sweet.
+                 Purple used to be a 10-vertex "royal star", virtually the same
+                 silhouette as yellow's kokis star. Shape-coding only helps
+                 colorblind players if the shapes are actually distinguishable,
+                 and those two were separable by hue alone — exactly the channel
+                 the coding exists to back up. A circle shares its outline with
+                 nothing else on the board. */
+              <>
+                <circle cx="30" cy="30" r="21" fill={`url(#grad-${color})`} />
+                {/* Faint swirl so it reads as a sweet rather than a plain dot. */}
+                <path
+                  d="M20 32 Q 26 20, 34 26 T 41 32"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeOpacity="0.35"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </>
             )}
 
             {color === 'blue' && (
@@ -251,6 +268,16 @@ export default function CandySprite({ color, special, bombTimer, size = 48 }) {
         <div className="candy-glow-ring" />
       )}
 
+      {/* Animated energy shimmer for striped candies */}
+      {(isStripedH || isStripedV) && (
+        <div className={`candy-stripe-shimmer ${isStripedV ? 'vertical' : ''}`} />
+      )}
+
+      {/* Breathing pulse for wrapped candies */}
+      {isWrapped && (
+        <div className="candy-wrapped-pulse" />
+      )}
+
       {/* CANDY BOMB OVERLAY (Timed Hazard) */}
       {bombTimer !== undefined && (
         <div 
@@ -292,6 +319,16 @@ export default function CandySprite({ color, special, bombTimer, size = 48 }) {
     </div>
   );
 }
+
+/**
+ * Memoised on purpose. All four props are primitives, and GameBoard holds a lot
+ * of frequently-changing state that has nothing to do with the candies —
+ * score popups, combo labels, shatter shards, the idle-hint tick. Without this,
+ * every one of those updates re-rendered all 64 sprites, each of which builds a
+ * sizeable SVG tree with gradients and filters. That work landed squarely on
+ * the frames where the player was dragging a candy.
+ */
+export default memo(CandySprite);
 
 function getColorBase(color) {
   const map = {

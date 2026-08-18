@@ -11,3 +11,5 @@ graphify-out/
 android/keystore.properties
 *.keystore
 *.jks
+# Plaintext copy of the keystore/key passwords — never commit this either.
+android_signing_info.md

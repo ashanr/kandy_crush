@@ -6,6 +6,7 @@ export class ParticleEngine {
     this.lasers = [];
     this.lightningArcs = [];
     this.shockwaves = [];
+    this.vortexes = [];
     this.listeners = new Set();
   }
 
@@ -15,6 +16,7 @@ export class ParticleEngine {
     this.lasers = [];
     this.lightningArcs = [];
     this.shockwaves = [];
+    this.vortexes = [];
   }
 
   /** True when there is nothing left to draw. */
@@ -24,6 +26,7 @@ export class ParticleEngine {
       && this.lasers.length === 0
       && this.lightningArcs.length === 0
       && this.shockwaves.length === 0
+      && this.vortexes.length === 0
     );
   }
 
@@ -169,6 +172,53 @@ export class ParticleEngine {
     this.notifyActivity();
   }
 
+  // 5. Jelly clear splatter — translucent cyan glass fragments
+  spawnJellySplatter(x, y) {
+    const colors = ['#38bdf8', '#7dd3fc', '#bae6fd', '#e0f2fe'];
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.6;
+      const speed = 1.5 + Math.random() * 4;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.5,
+        size: 3 + Math.random() * 5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: 0.75,
+        life: 1,
+        decay: 0.04 + Math.random() * 0.02,
+        gravity: 0.12,
+        shape: Math.random() > 0.4 ? 'star' : 'circle',
+      });
+    }
+    this.notifyActivity();
+  }
+
+  // 6. Color Bomb vortex — spiral particles drawing inward
+  spawnVortex(cx, cy, duration = 0.4) {
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      const dist = 40 + Math.random() * 30;
+      this.vortexes.push({
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        cx,
+        cy,
+        angle,
+        dist,
+        speed: 0.08 + Math.random() * 0.04,
+        size: 2 + Math.random() * 3,
+        color: ['#ffd93d', '#ff5da2', '#38bdf8', '#4ade80', '#c084fc'][i % 5],
+        alpha: 1,
+        life: duration,
+        age: 0,
+      });
+    }
+    this.notifyActivity();
+  }
+
   // Update particle physics frame
   update() {
     // Update shards
@@ -199,9 +249,23 @@ export class ParticleEngine {
     // Update shockwaves
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const sw = this.shockwaves[i];
-      sw.radius += (sw.maxRadius - sw.radius) * 0.25; // Snappier expansion
+      sw.radius += (sw.maxRadius - sw.radius) * 0.25;
       sw.alpha -= sw.decay;
       if (sw.alpha <= 0) this.shockwaves.splice(i, 1);
+    }
+
+    // Update vortex particles — spiral inward then vanish
+    for (let i = this.vortexes.length - 1; i >= 0; i--) {
+      const v = this.vortexes[i];
+      v.age += 0.016; // ~60fps
+      const t = Math.min(1, v.age / v.life);
+      v.dist *= (1 - v.speed);
+      v.angle += 0.15 + t * 0.3;
+      v.x = v.cx + Math.cos(v.angle) * v.dist;
+      v.y = v.cy + Math.sin(v.angle) * v.dist;
+      v.alpha = 1 - t * 0.5;
+      v.size *= 0.985;
+      if (v.age >= v.life || v.dist < 2) this.vortexes.splice(i, 1);
     }
   }
 
@@ -305,6 +369,18 @@ export class ParticleEngine {
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
+    });
+
+    // Render vortex particles
+    ctx.globalCompositeOperation = 'screen';
+    this.vortexes.forEach((v) => {
+      ctx.globalAlpha = v.alpha;
+      ctx.fillStyle = v.color;
+      ctx.shadowColor = v.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, v.size, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     ctx.restore();

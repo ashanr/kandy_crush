@@ -79,6 +79,13 @@ export const THEMES = {
     floaters: ['🌈', '⭐', '👑'],
     particleColor: '#67e8f9',
   },
+  11: {
+    name: 'Cocoa Quarry',
+    gradient: ['#3f2a1a', '#26170d', '#140b05'],
+    accentGlow: 'rgba(180, 120, 70, 0.16)',
+    floaters: ['🍫', '🪨', '🟤'],
+    particleColor: '#b4784a',
+  },
 };
 
 const DEFAULT_THEME = THEMES[1];
@@ -132,9 +139,15 @@ export default function DynamicBackground({ levelId }) {
     resize();
     window.addEventListener('resize', resize);
 
-    // Initialize ambient particles
+    // Initialize ambient particles. This canvas animates continuously for as
+    // long as the board is open, competing for frames with the candy
+    // interactions themselves, so the count is scaled to the device rather than
+    // fixed at 40 — a phone gets roughly half of what a desktop does, and a
+    // reduced-motion preference drops the ambient layer entirely.
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const ambientCount = reduceMotion ? 0 : Math.round(Math.min(40, Math.max(14, window.innerWidth / 26)));
     particlesRef.current = Array.from(
-      { length: 40 },
+      { length: ambientCount },
       () => new FloatingParticle(canvas.width, canvas.height)
     );
 

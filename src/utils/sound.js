@@ -439,6 +439,23 @@ export function getAnnouncerVoice() {
   return currentVoiceGender;
 }
 
+// The clip currently talking. Announcer lines fire on every move, so at any
+// reasonable playing speed a new line used to start while the previous one was
+// still going — several voices overlapping at once, which reads as garbled and
+// rushed rather than energetic. Only one announcer line is ever audible now:
+// starting a new one cuts the old one off.
+let activeVoiceSource = null;
+
+export function stopAnnouncerVoice() {
+  if (!activeVoiceSource) return;
+  try {
+    activeVoiceSource.stop();
+  } catch {
+    // Already finished; onended has cleaned up.
+  }
+  activeVoiceSource = null;
+}
+
 export function speakSinhalaFile(key) {
   if (!unlocked) return;
   try {
@@ -448,10 +465,13 @@ export function speakSinhalaFile(key) {
     const available = clips.filter(Boolean);
     if (available.length === 0) return;
 
+    stopAnnouncerVoice();
+
     const buffer = available[Math.floor(Math.random() * available.length)];
     const ctx = getContext();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    activeVoiceSource = source;
 
     const out = ctx.createGain();
     out.gain.value = 1;
@@ -477,6 +497,7 @@ export function speakSinhalaFile(key) {
     const restore = () => {
       if (restored) return;
       restored = true;
+      if (activeVoiceSource === source) activeVoiceSource = null;
       unduckBGM();
     };
     source.onended = restore;

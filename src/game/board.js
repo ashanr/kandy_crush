@@ -20,6 +20,34 @@ export const SPECIAL = {
 
 export const SCORE_PER_CANDY = 10;
 
+/**
+ * Blockers occupy a board cell instead of a candy. They carry no `color`, which
+ * is what makes them unmatchable for free — `findMatches` keys entirely off
+ * `cell?.color`, and a run of colourless cells fails its `prevColor` guard.
+ *
+ * Deviation from the original worth knowing about: here blockers fall with
+ * gravity. Real chocolate is anchored, but anchoring it means candies can no
+ * longer refill the column beneath it, which leaves permanent holes in the
+ * board — a much larger change to gravity and refill than the hazard is worth.
+ */
+export const BLOCKER = {
+  LICORICE: 'licorice',
+  CHOCOLATE: 'chocolate',
+};
+
+export function createBlocker(kind) {
+  return { id: nextId(), color: undefined, special: SPECIAL.NONE, blocker: kind };
+}
+
+export function isBlocker(cell) {
+  return Boolean(cell && cell.blocker);
+}
+
+/** A cell the player is allowed to pick up and swap. */
+export function isSwappable(cell) {
+  return Boolean(cell) && !cell.blocker && !cell.locked;
+}
+
 let uidCounter = 0;
 function nextId() {
   uidCounter += 1;
@@ -281,9 +309,25 @@ export function activateSpecial(board, r, c, cell, explosionCells, visited = new
   const cellsToActivate = [];
 
   if (cell.special === SPECIAL.STRIPED_H) {
-    for (let cc = 0; cc < cols; cc += 1) cellsToActivate.push([r, cc]);
+    // Licorice absorbs the beam: it stops at the swirl instead of passing
+    // through, so a wall of licorice genuinely shields what is behind it.
+    for (let cc = c; cc < cols; cc += 1) {
+      cellsToActivate.push([r, cc]);
+      if (cc !== c && board[r][cc]?.blocker === BLOCKER.LICORICE) break;
+    }
+    for (let cc = c - 1; cc >= 0; cc -= 1) {
+      cellsToActivate.push([r, cc]);
+      if (board[r][cc]?.blocker === BLOCKER.LICORICE) break;
+    }
   } else if (cell.special === SPECIAL.STRIPED_V) {
-    for (let rr = 0; rr < rows; rr += 1) cellsToActivate.push([rr, c]);
+    for (let rr = r; rr < rows; rr += 1) {
+      cellsToActivate.push([rr, c]);
+      if (rr !== r && board[rr][c]?.blocker === BLOCKER.LICORICE) break;
+    }
+    for (let rr = r - 1; rr >= 0; rr -= 1) {
+      cellsToActivate.push([rr, c]);
+      if (board[rr][c]?.blocker === BLOCKER.LICORICE) break;
+    }
   } else if (cell.special === SPECIAL.WRAPPED) {
     for (let rr = r - 1; rr <= r + 1; rr += 1) {
       for (let cc = c - 1; cc <= c + 1; cc += 1) {
@@ -346,6 +390,101 @@ export function activateSpecial(board, r, c, cell, explosionCells, visited = new
 // Gravity
 // ---------------------------------------------------------------------------
 
+/**
+ * Applies the blocker/lock rules to a pending set of cleared cells.
+ *
+ * Two things happen that a plain clear wouldn't do:
+ *  - A **locked** candy caught in a match is freed rather than destroyed. The
+ *    lock absorbs the hit, so the candy survives and is playable next move.
+ *  - **Blockers** are never matched directly (they have no colour), so the only
+ *    way to remove them is collateral damage: any blocker orthogonally adjacent
+ *    to a cleared cell is destroyed.
+ *
+ * Mutates `board` in place and returns the set of cells that should actually be
+ * emptied, plus which blocker kinds were destroyed (the chocolate spread rule
+ * needs to know whether any chocolate died this move).
+ */
+function applyClearRules(board, toClear) {
+  const rows = board.length;
+  const cols = board[0].length;
+  const cleared = new Set();
+  const destroyedKinds = new Set();
+
+  toClear.forEach((key) => {
+    const [r, c] = parseKey(key);
+    const cell = board[r][c];
+    if (!cell) return;
+    if (cell.locked) {
+      // The cage takes the hit; the candy stays on the board.
+      board[r][c] = { ...cell, locked: false };
+      return;
+    }
+    if (cell.blocker) destroyedKinds.add(cell.blocker);
+    cleared.add(key);
+  });
+
+  // Collateral damage to adjacent blockers, computed from the cells that are
+  // genuinely clearing (a freed lock does not also smash the neighbouring
+  // licorice — the hit was spent on the cage).
+  const neighbours = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  const collateral = new Set();
+  cleared.forEach((key) => {
+    const [r, c] = parseKey(key);
+    neighbours.forEach(([dr, dc]) => {
+      const rr = r + dr;
+      const cc = c + dc;
+      if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) return;
+      const neighbour = board[rr][cc];
+      if (isBlocker(neighbour)) collateral.add(cellKey(rr, cc));
+    });
+  });
+  collateral.forEach((key) => {
+    const [r, c] = parseKey(key);
+    destroyedKinds.add(board[r][c].blocker);
+    cleared.add(key);
+  });
+
+  return { cleared, destroyedKinds };
+}
+
+/**
+ * Chocolate grows when it is left alone: if a move destroys no chocolate, one
+ * chocolate block consumes an orthogonally adjacent candy. That "punish
+ * inaction" pressure is the whole point of the hazard — without it chocolate is
+ * just a wall you can ignore.
+ */
+export function spreadChocolate(board, rng = Math.random) {
+  const rows = board.length;
+  const cols = board[0].length;
+  const sources = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (board[r][c]?.blocker === BLOCKER.CHOCOLATE) sources.push([r, c]);
+    }
+  }
+  if (sources.length === 0) return { board, spread: null };
+
+  const neighbours = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  // Consider every legal growth site, then pick one, so growth isn't biased
+  // toward whichever chocolate happens to sit earliest in scan order.
+  const sites = [];
+  sources.forEach(([r, c]) => {
+    neighbours.forEach(([dr, dc]) => {
+      const rr = r + dr;
+      const cc = c + dc;
+      if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) return;
+      const target = board[rr][cc];
+      if (target && !target.blocker && !target.locked) sites.push([rr, cc]);
+    });
+  });
+  if (sites.length === 0) return { board, spread: null };
+
+  const [gr, gc] = sites[Math.floor(rng() * sites.length)];
+  const next = cloneBoard(board);
+  next[gr][gc] = createBlocker(BLOCKER.CHOCOLATE);
+  return { board: next, spread: [gr, gc] };
+}
+
 function applyGravity(board, rng = Math.random) {
   const rows = board.length;
   const cols = board[0].length;
@@ -385,6 +524,7 @@ export function resolveBoard(board, jellyGrid, { triggerPos = null, rng = Math.r
   let cascadeLevel = 0;
   let totalScore = 0;
   const cascadeSteps = [];
+  const blockersDestroyed = new Set();
   let pendingTrigger = triggerPos;
 
   for (;;) {
@@ -417,38 +557,51 @@ export function resolveBoard(board, jellyGrid, { triggerPos = null, rng = Math.r
     });
     explosionCells.forEach((k) => toClear.add(k));
 
-    totalScore += toClear.size * SCORE_PER_CANDY * multiplier;
+    // Locked candies are freed instead of cleared, and adjacent blockers are
+    // smashed as collateral — see applyClearRules.
+    const { cleared, destroyedKinds } = applyClearRules(current, toClear);
+    destroyedKinds.forEach((kind) => blockersDestroyed.add(kind));
 
-    toClear.forEach((key) => {
+    totalScore += cleared.size * SCORE_PER_CANDY * multiplier;
+
+    cleared.forEach((key) => {
       const [r, c] = parseKey(key);
       if (jelly[r][c] > 0) jelly[r][c] -= 1;
     });
 
     const spawnMap = new Map(specialSpawns.map((s) => [cellKey(s.r, s.c), s]));
-    toClear.forEach((key) => {
+    cleared.forEach((key) => {
       const [r, c] = parseKey(key);
       const spawn = spawnMap.get(key);
       current[r][c] = spawn ? createCandy(spawn.color, spawn.special) : null;
     });
 
-    cascadeSteps.push({ cleared: [...toClear], level: cascadeLevel });
+    cascadeSteps.push({ cleared: [...cleared], level: cascadeLevel });
     current = applyGravity(current, rng);
   }
 
-  return { board: current, jellyGrid: jelly, score: totalScore, cascadeSteps, cascadeCount: cascadeLevel };
+  return {
+    board: current,
+    jellyGrid: jelly,
+    score: totalScore,
+    cascadeSteps,
+    cascadeCount: cascadeLevel,
+    blockersDestroyed: [...blockersDestroyed],
+  };
 }
 
 export function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.random) {
   const current = cloneBoard(board);
   const jelly = jellyGrid.map((row) => row.slice());
 
-  explosionCells.forEach((key) => {
+  const { cleared, destroyedKinds } = applyClearRules(current, explosionCells);
+  cleared.forEach((key) => {
     const [r, c] = parseKey(key);
     if (jelly[r][c] > 0) jelly[r][c] -= 1;
     current[r][c] = null;
   });
 
-  const score = explosionCells.size * SCORE_PER_CANDY;
+  const score = cleared.size * SCORE_PER_CANDY;
   const gravBoard = applyGravity(current, rng);
   const cascadeResult = resolveBoard(gravBoard, jelly, { rng });
 
@@ -457,8 +610,9 @@ export function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.ran
     board: cascadeResult.board,
     jellyGrid: cascadeResult.jellyGrid,
     score: score + cascadeResult.score,
-    cascadeSteps: [{ cleared: [...explosionCells], level: 0 }, ...cascadeResult.cascadeSteps],
+    cascadeSteps: [{ cleared: [...cleared], level: 0 }, ...cascadeResult.cascadeSteps],
     cascadeCount: cascadeResult.cascadeCount,
+    blockersDestroyed: [...new Set([...destroyedKinds, ...(cascadeResult.blockersDestroyed || [])])],
   };
 }
 
@@ -466,11 +620,21 @@ export function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.ran
 // Candy Bomb countdown resolution. Applies at the very end of any valid move.
 // ---------------------------------------------------------------------------
 
-export function finalizeMove(result) {
+export function finalizeMove(result, rng = Math.random) {
   if (!result.valid) return result;
 
   let bombExploded = false;
-  const board = result.board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+  let board = result.board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+
+  // Chocolate grows unless it was hit this move. Runs before the bomb tick so a
+  // freshly-grown block can't consume the cell a bomb is about to vacate.
+  let chocolateSpread = null;
+  const hitChocolate = (result.blockersDestroyed || []).includes(BLOCKER.CHOCOLATE);
+  if (!hitChocolate) {
+    const grown = spreadChocolate(board, rng);
+    board = grown.board;
+    chocolateSpread = grown.spread;
+  }
   
   for (let r = 0; r < board.length; r += 1) {
     for (let c = 0; c < board[r].length; c += 1) {
@@ -485,7 +649,7 @@ export function finalizeMove(result) {
       }
     }
   }
-  return { ...result, board, bombExploded };
+  return { ...result, board, bombExploded, chocolateSpread };
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +671,12 @@ export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
   const cellA = board[r1][c1];
   const cellB = board[r2][c2];
 
+  // Blockers can't be picked up, and a locked candy is pinned in its cage until
+  // a neighbouring match frees it.
+  if (!isSwappable(cellA) || !isSwappable(cellB)) {
+    return { valid: false };
+  }
+
   if (cellA.special !== SPECIAL.NONE || cellB.special !== SPECIAL.NONE) {
     return finalizeMove(handleSpecialSwap(board, jellyGrid, posA, posB, cellA, cellB, rng));
   }
@@ -526,6 +696,10 @@ export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
 // ---------------------------------------------------------------------------
 
 function swapCreatesMatch(board, posA, posB) {
+  // Deadlock detection and the idle hint both run through here, so an
+  // unswappable pair must not count as a legal move — otherwise the board can
+  // look playable while every "move" it found is actually rejected.
+  if (!isSwappable(board[posA[0]][posA[1]]) || !isSwappable(board[posB[0]][posB[1]])) return false;
   const swapped = swapCells(board, posA, posB);
   return findMatches(swapped).length > 0;
 }
@@ -592,6 +766,29 @@ export function useHammerBooster(board, jellyGrid, pos, rng = Math.random) {
 
 export function useShuffleBooster(board, jellyGrid, rng = Math.random) {
   return { valid: true, board: shuffleBoard(board, rng), jellyGrid, score: 0, cascadeSteps: [], cascadeCount: 0 };
+}
+
+/**
+ * Turns one candy into a Striped and detonates it immediately.
+ *
+ * Drives the end-of-level Sugar Crush cascade, where each unspent move is
+ * cashed in as a striped candy. Scoring for that bonus is a flat per-move rate
+ * decided by the caller (and calibrated against it) — the score returned here
+ * is incidental board clearing on a level that has already been won, so callers
+ * are free to ignore it.
+ */
+export function spawnAndDetonateStriped(board, jellyGrid, pos, horizontal, rng = Math.random) {
+  const [r, c] = pos;
+  const source = board[r][c];
+  if (!source) return null;
+
+  const next = cloneBoard(board);
+  const striped = createCandy(source.color, horizontal ? SPECIAL.STRIPED_H : SPECIAL.STRIPED_V);
+  next[r][c] = striped;
+
+  const explosionCells = new Set([cellKey(r, c)]);
+  activateSpecial(next, r, c, striped, explosionCells, new Set(), { jellyGrid, rng });
+  return clearAndCascade(next, jellyGrid, explosionCells, rng);
 }
 
 // Grants a free Color Bomb candy at the chosen position (does not clear the board).

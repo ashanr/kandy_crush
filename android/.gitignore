@@ -16,8 +16,10 @@
 bin/
 gen/
 out/
-#  Uncomment the following line in case you need and you don't have the release build type files in your app
-# release/
+# Release build outputs (baseline profiles, output-metadata.json, etc.) — these
+# are produced fresh by every `gradlew assembleRelease` / `bundleRelease`, not
+# hand-authored, so they don't belong in version control.
+release/
 
 # Gradle files
 .gradle/
@@ -38,19 +40,12 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ
+# IntelliJ / Android Studio project files are machine-specific (absolute SDK
+# paths, the last-selected run/deploy target, local module bookkeeping) —
+# ignore the whole folder rather than picking off individual files one at a
+# time as Android Studio invents new ones.
 *.iml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-# Android Studio 3 in .gitignore file.
-.idea/caches
-.idea/modules.xml
-# Comment next line if keeping position of elements in Navigation Editor is relevant for you
-.idea/navEditor.xml
+.idea/
 
 # Keystore files
 # Uncomment the following lines if you do not want to check your keystore files in.

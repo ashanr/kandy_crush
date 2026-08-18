@@ -32,19 +32,38 @@ export default function ParticleCanvas({ width, height }) {
     // the entire time the player is looking at the board. Effects only fire on
     // a match, so the idle case is the common one.
     let animationFrameId = null;
+    // Frames still owed to the trail fade after the engine empties. Without
+    // this the loop would park the instant the last particle died and freeze
+    // its unfaded trail on screen until the next effect painted over it.
+    let fadeFramesLeft = 0;
 
     const renderLoop = () => {
-      // Clear in CSS-pixel space — the transform above already maps to the
-      // scaled buffer.
-      ctx.clearRect(0, 0, width, height);
+      // Motion blur: instead of wiping the frame, erase it partially so each
+      // particle leaves a decaying trail behind it. `destination-out` subtracts
+      // alpha, which is what a transparent overlay canvas needs — painting a
+      // translucent black rectangle would tint the board underneath instead.
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalCompositeOperation = 'source-over';
+
       globalParticleEngine.update();
       globalParticleEngine.render(ctx);
 
       if (globalParticleEngine.isIdle()) {
-        // Last effect just expired. The clear above already wiped the frame,
-        // so park until something new spawns.
-        animationFrameId = null;
-        return;
+        if (fadeFramesLeft > 0) {
+          // Keep fading the leftover trail down to nothing before parking.
+          fadeFramesLeft -= 1;
+        } else {
+          // Fully faded — hard-clear so no faint residue is left behind, then
+          // park until something new spawns.
+          ctx.clearRect(0, 0, width, height);
+          animationFrameId = null;
+          return;
+        }
+      } else {
+        // At 0.28 erase per frame the tail is invisible within ~20 frames.
+        fadeFramesLeft = 20;
       }
       animationFrameId = requestAnimationFrame(renderLoop);
     };

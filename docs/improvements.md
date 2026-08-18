@@ -8,6 +8,16 @@ This document lists remaining proposed enhancements to elevate the visual aesthe
 
 - **Level-Win Confetti**:
   - `canvas-confetti` is already an installed dependency but isn't imported or called anywhere in `src/` — wire it up to fire on level completion (`App.jsx`'s win result modal) rather than leaving it dead weight in `package.json`.
+- **Animated Star Reveal on Victory Modal**:
+  - Stars animate in one by one with a celebratory bounce and particle burst as the score counts up, rather than all appearing at once.
+- **True Sugar Crush Board Cascade**:
+  - Instead of just calculating bonus points mathematically, visually spawn Striped Candies on the board for each remaining move and detonate them sequentially. This is what the real Candy Crush does.
+- **Coconut Wheel Rolling Animation**:
+  - When activated, the coconut should visually roll 3 cells along its row/column before firing perpendicular lasers.
+- **Score Popup Trajectory Variety**:
+  - Instead of purely vertical float, add slight horizontal drift and arc randomization so popups feel more organic.
+- **Particle Trail Persistence (Motion Blur)**:
+  - Use low-alpha canvas clearing (`globalAlpha = 0.15`) to create glowing trails behind fast-moving particles like laser sparks.
 
 ---
 
