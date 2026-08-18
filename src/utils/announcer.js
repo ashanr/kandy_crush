@@ -4,14 +4,17 @@
 // These used to be decided independently at each call site in GameBoard.jsx,
 // which let them drift: the plain-cascade branch passed `cascadeCount` straight
 // into the voice picker while choosing banner text from different thresholds,
-// so a 3-step cascade displayed "එළකිරි!" while the audio said "පට්ට!".
+// so a 3-step cascade displayed one word while the audio said another.
 // Returning both from one function makes that class of bug impossible.
+//
+// The keys are the mp3 basenames in public/voices/<gender>/ and must match
+// VOICE_KEYS in src/utils/sound.js and PHRASES in scripts/generate_all_voices.py.
 
 export const BANNER = {
-  niyamai: 'Sweet!',
-  patta: 'Tasty!',
-  elakiri: 'Delicious!',
-  wedak_na: 'Unbelievable!',
+  sweet: 'Sweet!',
+  tasty: 'Tasty!',
+  delicious: 'Delicious!',
+  divine: 'Divine!',
 };
 
 /**
@@ -23,12 +26,12 @@ export const BANNER = {
 export function getAnnouncement({ specialCount = 0, cascadeCount = 0 } = {}) {
   // Special-candy swaps outrank cascade depth — they're the more dramatic
   // event and the player's deliberate action.
-  if (specialCount >= 2) return { banner: BANNER.wedak_na, voiceKey: 'wedak_na' };
-  if (specialCount === 1) return { banner: BANNER.patta, voiceKey: 'patta' };
+  if (specialCount >= 2) return { banner: BANNER.divine, voiceKey: 'divine' };
+  if (specialCount === 1) return { banner: BANNER.tasty, voiceKey: 'tasty' };
 
-  if (cascadeCount >= 4) return { banner: BANNER.wedak_na, voiceKey: 'wedak_na' };
-  if (cascadeCount === 3) return { banner: BANNER.elakiri, voiceKey: 'elakiri' };
-  if (cascadeCount === 2) return { banner: BANNER.patta, voiceKey: 'patta' };
+  if (cascadeCount >= 4) return { banner: BANNER.divine, voiceKey: 'divine' };
+  if (cascadeCount === 3) return { banner: BANNER.delicious, voiceKey: 'delicious' };
+  if (cascadeCount === 2) return { banner: BANNER.tasty, voiceKey: 'tasty' };
 
-  return { banner: BANNER.niyamai, voiceKey: 'niyamai' };
+  return { banner: BANNER.sweet, voiceKey: 'sweet' };
 }

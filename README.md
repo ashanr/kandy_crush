@@ -23,26 +23,20 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
 
 ---
 
-## 🇱🇰 Sinhala Voice & Theme Features
+## 🎙️ Voice Announcer & Sound Engine
 
-- **High-Energy Offline Sinhala Announcer**:
-  - Replaced native Web Speech API with pre-rendered, high-energy `.mp3` voice lines (generated via Microsoft Edge AI TTS) for genuine **offline playability**, zero-latency, and cross-browser consistency. All 48 clips (3 variants plus a legacy fallback per trigger, per gender) are precached by the service worker.
-  - **3 random variants per trigger** so the announcer never repeats the same line twice in a row, in deliberately colloquial Sinhala (*මචං*, *සුපිරි*, *මරු*) rather than formal dictionary phrasing.
-  - **Stadium reverb** on big combos and wins, and the background music **automatically ducks** while a voice line plays so it always cuts through.
-  - **Male / Female Voice Toggle**: A settings menu on the home page allows players to dynamically switch between an energetic Male (පිරිමි) and Female (ගැහැණු) announcer voice.
-- **Procedural Background Music Engine**:
-  - Fully synthesized background music using the browser's **Web Audio API** (no external audio files used).
-  - Dynamically toggle between 3 distinct **Sri Lankan rhythmic styles**:
-    - **Baila**: Bouncy 140 BPM 6/8 rhythm with a sawtooth bassline.
-    - **Papare**: Driving 160 BPM beat with trumpet-like square waves and fast snare rolls.
-    - **Kandyan (Getabera)**: Heavy 120 BPM traditional drum patterns focusing on low toms and high-pitched strikes.
-- **Sinhala Catchphrases** — banner text and the spoken line are chosen together from one shared mapping (`src/utils/announcer.js`), so they always agree:
-  - 💥 **Single match, no chain**: *"නියමයි!"* (*Niyamai!* – Awesome!)
-  - ⚡ **One special candy, or a 2-step cascade**: *"පට්ට!"* (*Patta!* – Fantastic!)
-  - 🔥 **3-step cascade**: *"එළකිරි!"* (*Elakiri!* – Top Class!)
-  - 🎆 **Special+special combo, or a 4+ step cascade**: *"වැඩක් නෑ කතා කරලා!"* (*Wedak Na Kathakala!* – Unbelievable!)
-  - 🎉 **Level Complete** / 😢 **Out of Moves**: dedicated win/lose voice clips; the result screen headline reads *"දින්නා! 🎉"* / *"අයියෝ! Moves ඉවරයි 😢"*.
-- **Localized UI**: On-screen Sinhala combo banners, win/loss modals, and continuation buttons.
+- **High-Energy Offline Voice Announcer**:
+  - Pre-rendered English voice lines (`en-US-GuyNeural` / `en-US-EmmaNeural` via Microsoft Edge TTS) for genuine **offline playability**, zero latency, and cross-browser consistency. All 48 clips are precached by the service worker.
+  - The vocabulary is the genre's escalation ladder — **Sweet! → Tasty! → Delicious! → Divine!**, with **Sugar Crush!** on a win. The spoken word, the banner and the floating combo label all come from one mapping (`src/utils/announcer.js`), so they cannot disagree about the same move.
+  - **3 variants per trigger** picked at random, so the announcer never repeats the same line twice in a row ("Delicious!" / "Simply delicious!" / "Mouth-watering!").
+  - **Stadium reverb** on big combos and wins, and background music **automatically ducks** while a voice line plays so it cuts through clearly.
+  - **Male / Female Voice Toggle**: Settings menu on the home page allows players to dynamically switch between Male and Female announcer voices.
+- **Procedural Orchestral Music Engine**:
+  - Fully synthesized background music using the browser's **Web Audio API** (zero external audio files used, ensuring instant loading and 100% offline playability).
+  - Dynamically toggle between 3 distinct **Candy Saga Music Styles**:
+    - **Orchestral**: Upbeat 128 BPM C-Major marimba & glockenspiel melody with pizzicato bass accompaniment.
+    - **Sweet Marimba**: Light, bouncy wooden bell and percussion theme.
+    - **Ambient Chill**: Relaxed 96 BPM pentatonic harp and flute bed for puzzle gameplay.
 
 ---
 
@@ -52,7 +46,7 @@ A high-performance match-3 Web/PWA game built with React, Vite, and Framer Motio
   - **Framer Motion Engine**: Exaggerated squash-and-stretch entrance physics, a flash-and-blur exit transition on cleared candies, and smooth tap/hover haptics.
   - **60fps Canvas Particle System**: Intense `screen` blend-mode glowing laser beams, branching lightning arcs, and dual-layer shockwave explosions.
   - **Per-Candy Shatter Effect**: every destroyed candy is diffed out of the board and gets its own central flash + flying colored shard burst at its last position.
-  - **3D SVG Candy Sprites**: Sri Lankan motifs (Kavum, Kokis) enhanced with multi-layer inner gloss, drop shadows, and intense sheen reflections.
+  - **3D SVG Candy Sprites**: shape-coded silhouettes with multi-layer inner gloss, drop shadows, and intense sheen reflections.
   - **Per-Level Dynamic Backgrounds**: each level has its own animated canvas backdrop (themed gradient, glow orbs, drifting ambient particles) plus a slow-floating layer of level-themed emoji.
   - **Combo Reaction Labels**: Escalating praise text floats on cascades — "Sweet!" (2-cascade), "Tasty!" (3-cascade), "Divine!" (4+), and rainbow "Sugar Crush!" for double-special combos.
   - **Board Camera Shake**: The grid physically shakes on Wrapped detonations, Color Bomb zaps, and 3+ cascades.
@@ -103,7 +97,7 @@ npm run dev       # Start dev server (add -- --host to test on your phone over W
 | `npm run build` | Compile production build to `dist/` and generate PWA service worker |
 | `npm run preview` | Preview production build locally |
 | `npm test` | Run the 151 unit tests across engine, level data, progression, grid geometry, particles, storage, and announcer (Vitest) |
-| `npm run voices` | Regenerate the 36 Sinhala voice variants (needs Python + `pip install edge-tts`) |
+| `npm run voices` | Regenerate the 36 announcer voice variants plus 12 fallback clips (needs Python + `pip install edge-tts`) |
 
 ---
 
@@ -111,7 +105,7 @@ npm run dev       # Start dev server (add -- --host to test on your phone over W
 
 - [docs/implemented_features.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/implemented_features.md): Overview of all current game mechanics, sound engines, and PWA setup.
 - [docs/missing_features.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/missing_features.md): Single-player roadmap (spreading chocolate, Licorice Swirls, Teleporter Portals, ingredient-drop and order modes, the out-of-moves "+5" offer).
-- [docs/improvements.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/improvements.md): Remaining polish and UX ideas (confetti, auto-hint, pre-game booster menu, level editor, APK build script) — most of the original Sri Lankan audio/visual wishlist is now shipped and documented in `implemented_features.md` instead.
+- [docs/improvements.md](file:///c:/Users/asus/Documents/apps/candy_crush_saga/docs/improvements.md): Remaining polish and UX ideas (confetti, auto-hint, pre-game booster menu, level editor, APK build script) — most of the original audio/visual wishlist is now shipped and documented in `implemented_features.md` instead.
 
 ---
 

@@ -474,27 +474,27 @@ export default function SagaMap({ progress, celebration, onCelebrationDone, onSe
                 <div className="voice-toggle" style={{ flexWrap: 'wrap' }}>
                   <button 
                     type="button" 
-                    className={`toggle-btn ${bgmStyle === 'baila' ? 'active' : ''}`}
-                    onClick={() => handleBGMChange('baila')}
-                    style={{ padding: '8px 4px', fontSize: '0.85rem' }}
+                    className={`toggle-btn ${bgmStyle === 'orchestral' ? 'active' : ''}`}
+                    onClick={() => handleBGMChange('orchestral')}
+                    style={{ padding: '8px 6px', fontSize: '0.82rem' }}
                   >
-                    Baila
+                    Orchestral
                   </button>
                   <button 
                     type="button" 
-                    className={`toggle-btn ${bgmStyle === 'papare' ? 'active' : ''}`}
-                    onClick={() => handleBGMChange('papare')}
-                    style={{ padding: '8px 4px', fontSize: '0.85rem' }}
+                    className={`toggle-btn ${bgmStyle === 'marimba' ? 'active' : ''}`}
+                    onClick={() => handleBGMChange('marimba')}
+                    style={{ padding: '8px 6px', fontSize: '0.82rem' }}
                   >
-                    Papare
+                    Sweet Marimba
                   </button>
                   <button 
                     type="button" 
-                    className={`toggle-btn ${bgmStyle === 'kandyan' ? 'active' : ''}`}
-                    onClick={() => handleBGMChange('kandyan')}
-                    style={{ padding: '8px 4px', fontSize: '0.85rem' }}
+                    className={`toggle-btn ${bgmStyle === 'ambient' ? 'active' : ''}`}
+                    onClick={() => handleBGMChange('ambient')}
+                    style={{ padding: '8px 6px', fontSize: '0.82rem' }}
                   >
-                    Kandyan
+                    Ambient
                   </button>
                 </div>
               </div>

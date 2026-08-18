@@ -147,10 +147,10 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             </filter>
           </defs>
 
-          {/* CANDY SHAPES (Sri Lankan / Classic Motifs) */}
+          {/* CANDY SHAPES — one silhouette per colour, see shape-coding note below */}
           <g filter="url(#candy-shadow)">
             {color === 'red' && (
-              /* Kavum Dome / Heart Shape */
+              /* Heart / dome */
               <path
                 d="M30 10 C 15 0, 5 20, 30 52 C 55 20, 45 0, 30 10 Z"
                 fill={`url(#grad-${color})`}
@@ -158,7 +158,7 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             )}
 
             {color === 'yellow' && (
-              /* Kokis Star Shape */
+              /* Star */
               <path
                 d="M30 6 L36 20 L52 20 L38 30 L44 46 L30 36 L16 46 L22 30 L8 20 L24 20 Z"
                 fill={`url(#grad-${color})`}
@@ -166,7 +166,7 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             )}
 
             {color === 'green' && (
-              /* Dodol Diamond Shape */
+              /* Diamond */
               <polygon
                 points="30,8 50,30 30,52 10,30"
                 fill={`url(#grad-${color})`}
@@ -174,9 +174,9 @@ function CandySprite({ color, special, bombTimer, size = 48 }) {
             )}
 
             {color === 'purple' && (
-              /* Aggala Ball — a round sweet.
+              /* Ball — a round sweet.
                  Purple used to be a 10-vertex "royal star", virtually the same
-                 silhouette as yellow's kokis star. Shape-coding only helps
+                 silhouette as yellow's star. Shape-coding only helps
                  colorblind players if the shapes are actually distinguishable,
                  and those two were separable by hue alone — exactly the channel
                  the coding exists to back up. A circle shares its outline with

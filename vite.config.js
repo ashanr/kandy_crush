@@ -10,7 +10,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg'],
       workbox: {
         // The default globPatterns cover js/css/html/ico/png/svg only — without
-        // mp3 here the Sinhala voice clips are copied to dist/ but never
+        // mp3 here the announcer voice clips are copied to dist/ but never
         // precached, which silently breaks the offline playback guarantee that
         // is the whole reason these clips are pre-rendered instead of spoken
         // via the Web Speech API.

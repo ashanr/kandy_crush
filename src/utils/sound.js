@@ -48,30 +48,20 @@ export function unlockAudio() {
 
 // --- Background Music (BGM) Engine ---
 let isMuted = readString('bgmMuted') === 'true';
-let bgmStyle = readString('bgmStyle') || 'baila';
+// Default to orchestral theme
+let bgmStyle = readString('bgmStyle') || 'orchestral';
 let bgmInterval = null;
 let nextNoteTime = 0;
 let currentBeat = 0;
 
-// Which screen the music is scoring. The map gets the energetic Sri Lankan
-// percussion styles; gameplay gets a soft melodic bed instead.
-//
-// The drum styles are percussion-forward (kick sits at gain 0.5, well above the
-// 0.12–0.25 of the sound effects) on a short 8-step loop. On the map nothing
-// competes with that and it reads as energetic, but during play it stacks
-// underneath pops, lasers, explosions and the announcer voice — one cascade can
-// fire all four at once. Real match-3 games keep the drums for menus and put a
-// quiet melodic bed under the board, which is what 'game' does here.
 let bgmScene = 'map';
 
-// Gameplay music also sits lower in the mix so effects and voice lead.
 const SCENE_VOLUME = { map: 1, game: 0.55 };
 
 export function setBGMScene(scene) {
   if (scene !== 'map' && scene !== 'game') return;
   if (bgmScene === scene) return;
   bgmScene = scene;
-  // Restart so the new pattern begins on a clean phrase rather than mid-bar.
   if (bgmInterval) {
     stopBGM();
     startBGM();
@@ -99,10 +89,9 @@ export function getMuteState() {
 }
 
 export function setBGMStyle(style) {
-  if (['baila', 'papare', 'kandyan'].includes(style)) {
+  if (['orchestral', 'marimba', 'ambient'].includes(style)) {
     bgmStyle = style;
     writeString('bgmStyle', style);
-    // Restart BGM to immediately apply new tempo/rhythm if playing
     if (bgmInterval) {
       stopBGM();
       startBGM();
@@ -114,94 +103,66 @@ export function getBGMStyle() {
   return bgmStyle;
 }
 
-function playKick(time) {
-  const ctx = getContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.frequency.setValueAtTime(120, time);
-  osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.3);
-  gain.gain.setValueAtTime(0.5, time);
-  gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-  osc.connect(gain).connect(getBgmGain());
-  osc.start(time);
-  osc.stop(time + 0.3);
-}
-
-function playSnare(time, pitch = 250, vol = 0.2) {
-  const ctx = getContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(pitch, time);
-  gain.gain.setValueAtTime(vol, time);
-  gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-  osc.connect(gain).connect(getBgmGain());
-  osc.start(time);
-  osc.stop(time + 0.2);
-}
-
-function playSynth(time, freq, type = 'sawtooth', duration, vol = 0.08) {
-  const ctx = getContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(vol * (SCENE_VOLUME[bgmScene] ?? 1), time);
-  gain.gain.linearRampToValueAtTime(0.01, time + duration);
-  osc.connect(gain).connect(getBgmGain());
-  osc.start(time);
-  osc.stop(time + duration);
-}
-
-// Soft-attack tone for the gameplay bed. The percussion helpers above start at
-// full gain instantly, which is what gives them their punch — exactly the wrong
-// character for music meant to sit unnoticed behind the board.
-function playSoft(time, freq, duration, vol, type = 'sine') {
+// Bouncy Marimba / Glockenspiel Tone
+function playBellTone(time, freq, duration = 0.2, vol = 0.08, type = 'sine') {
   const ctx = getContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   const peak = Math.max(0.0002, vol * (SCENE_VOLUME[bgmScene] ?? 1));
   osc.type = type;
   osc.frequency.setValueAtTime(freq, time);
-  // Exponential ramps can never reach 0, hence the tiny floor values.
-  gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(peak, time + Math.min(0.12, duration * 0.3));
+  gain.gain.setValueAtTime(peak, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
   osc.connect(gain).connect(getBgmGain());
   osc.start(time);
-  osc.stop(time + duration + 0.02);
+  osc.stop(time + duration);
 }
 
-// 16-step pentatonic phrase at a relaxed tempo. Deliberately sparse and twice
-// the length of the drum loops so it reads as ambient rather than looping at
-// the player.
+// Soft Pizzicato / Bass Tone
+function playBassNote(time, freq, duration = 0.35, vol = 0.06) {
+  const ctx = getContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const peak = Math.max(0.0002, vol * (SCENE_VOLUME[bgmScene] ?? 1));
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, time);
+  gain.gain.setValueAtTime(peak, time);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+  osc.connect(gain).connect(getBgmGain());
+  osc.start(time);
+  osc.stop(time + duration);
+}
+
+// Orchestral C-Major Bouncy Candy Saga Melodies (16-step phrase)
+const CANDY_MELODY_MAIN = [
+  523.25, 659.25, 783.99, 1046.50,  880.00, 783.99, 659.25, 523.25,
+  587.33, 659.25, 698.46, 880.00,   783.99, 659.25, 587.33, 523.25
+];
+
+const CANDY_BASS_LINE = [
+  261.63, 0, 329.63, 0, 392.00, 0, 329.63, 0,
+  220.00, 0, 293.66, 0, 392.00, 0, 261.63, 0
+];
+
 const CALM_TEMPO = 96;
 const CALM_ARP = [
   261.63, 0, 0, 329.63, 0, 0, 392.00, 0,
-  440.00, 0, 0, 392.00, 0, 0, 329.63, 0,
+  440.00, 0, 0, 392.00, 0, 0, 329.63, 0
 ];
-// Low pad roots, one per half-phrase.
-const CALM_PAD = { 0: 130.81, 8: 110.00 };
 
 function scheduleCalmStep(time, step, stepDuration) {
   const note = CALM_ARP[step];
   if (note > 0) {
-    playSoft(time, note, stepDuration * 2.2, 0.045, 'sine');
+    playBellTone(time, note, stepDuration * 2.2, 0.045, 'sine');
   }
-  const padRoot = CALM_PAD[step];
-  if (padRoot) {
-    playSoft(time, padRoot, stepDuration * 7, 0.03, 'triangle');
-  }
-  // A single high shimmer once per phrase keeps it from feeling static.
-  if (step === 6) {
-    playSoft(time, 1046.50, stepDuration * 3, 0.012, 'sine');
+  if (step === 0 || step === 8) {
+    playBassNote(time, step === 0 ? 130.81 : 110.00, stepDuration * 6, 0.03);
   }
 }
 
 function scheduleBGM() {
   const ctx = getContext();
   while (nextNoteTime < ctx.currentTime + 0.1) {
-    // Gameplay: quiet melodic bed, no percussion.
     if (bgmScene === 'game') {
       const stepDuration = (60.0 / CALM_TEMPO) / 2;
       scheduleCalmStep(nextNoteTime, currentBeat % CALM_ARP.length, stepDuration);
@@ -210,49 +171,35 @@ function scheduleBGM() {
       continue;
     }
 
-    const beat = currentBeat % 8;
-    let secondsPerBeat = 60.0 / 140; // Default Baila tempo
+    const step = currentBeat % CANDY_MELODY_MAIN.length;
+    let secondsPerStep = (60.0 / 128) / 2; // 128 BPM bouncy theme
 
-    if (bgmStyle === 'baila') {
-      secondsPerBeat = 60.0 / 140; // 140 BPM
-      if (beat === 0 || beat === 3 || beat === 4) playKick(nextNoteTime);
-      if (beat === 2 || beat === 6) playSnare(nextNoteTime);
-      
-      const bassFreq = [130, 0, 196, 130, 130, 0, 146, 196][beat];
-      if (bassFreq > 0) playSynth(nextNoteTime, bassFreq, 'sawtooth', secondsPerBeat - 0.05, 0.08);
-      
-    } else if (bgmStyle === 'papare') {
-      secondsPerBeat = 60.0 / 160; // 160 BPM (Faster)
-      // Driving 4/4 kick pattern
-      if (beat % 2 === 0) playKick(nextNoteTime);
-      // Trumpet-like square wave melody
-      const melodyFreq = [392, 392, 440, 392, 523, 0, 493, 0][beat];
-      if (melodyFreq > 0) playSynth(nextNoteTime, melodyFreq, 'square', secondsPerBeat - 0.02, 0.06);
-      // Fast snare rolls
-      if (beat === 3 || beat === 7) {
-        playSnare(nextNoteTime, 300, 0.15);
-        playSnare(nextNoteTime + secondsPerBeat/2, 300, 0.15);
-      } else {
-        playSnare(nextNoteTime, 250, 0.1);
+    if (bgmStyle === 'orchestral') {
+      const note = CANDY_MELODY_MAIN[step];
+      const bass = CANDY_BASS_LINE[step];
+
+      if (note > 0) playBellTone(nextNoteTime, note, secondsPerStep * 1.8, 0.07, 'sine');
+      if (bass > 0) playBassNote(nextNoteTime, bass, secondsPerStep * 2, 0.05);
+
+      // Sparkling glockenspiel flourish on step 7 & 15
+      if (step === 7 || step === 15) {
+        playBellTone(nextNoteTime + secondsPerStep * 0.5, 1567.98, secondsPerStep, 0.025, 'triangle');
       }
-      
-    } else if (bgmStyle === 'kandyan') {
-      secondsPerBeat = 60.0 / 120; // 120 BPM (Heavy, rhythmic)
-      // Getabera style (heavy toms and high-pitched strikes)
-      if (beat === 0 || beat === 4 || beat === 5) playKick(nextNoteTime); // Low dawula/getabera hit
-      if (beat === 2 || beat === 3 || beat === 6 || beat === 7) {
-        // High pitched thammattama / getabera slap
-        playSnare(nextNoteTime, 600, 0.15);
-      }
-      // Occasional rapid triplet feel on beat 7
-      if (beat === 7) {
-        playSnare(nextNoteTime + secondsPerBeat/3, 700, 0.1);
-        playSnare(nextNoteTime + (secondsPerBeat*2)/3, 600, 0.1);
-      }
+
+    } else if (bgmStyle === 'marimba') {
+      secondsPerStep = (60.0 / 135) / 2;
+      const note = CANDY_MELODY_MAIN[step];
+      if (note > 0) playBellTone(nextNoteTime, note * 0.5, secondsPerStep * 1.2, 0.09, 'triangle');
+      if (step % 4 === 0) playBassNote(nextNoteTime, 130.81, secondsPerStep * 2, 0.06);
+
+    } else { // Ambient / Chill
+      const stepDuration = (60.0 / 100) / 2;
+      scheduleCalmStep(nextNoteTime, step % CALM_ARP.length, stepDuration);
+      secondsPerStep = stepDuration;
     }
 
-    nextNoteTime += secondsPerBeat / 2; // 8th notes step length
-    currentBeat++;
+    nextNoteTime += secondsPerStep;
+    currentBeat += 1;
   }
 }
 
@@ -325,7 +272,7 @@ export function playMegaBlast() {
 }
 
 // ---------------------------------------------------------------------------
-// Sinhala voice announcer
+// Voice announcer
 //
 // Clips are decoded into AudioBuffers rather than played as <audio> elements.
 // HTMLAudioElement lives outside the Web Audio graph, and bridging it via
@@ -335,13 +282,16 @@ export function playMegaBlast() {
 // clip while it's already sounding.
 // ---------------------------------------------------------------------------
 
-const VOICE_KEYS = ['niyamai', 'patta', 'elakiri', 'wedak_na', 'win', 'lose'];
+// Keys are the mp3 basenames under public/voices/<gender>/. They are also the
+// keys src/utils/announcer.js returns, so a clip that is not listed here simply
+// never plays -- add to both or neither.
+const VOICE_KEYS = ['sweet', 'tasty', 'delicious', 'divine', 'sugar_crush', 'out_of_moves'];
 const VARIANTS_PER_KEY = 3;
 
 // Big moments get reverb so they feel distinct from an ordinary match.
-const REVERB_KEYS = new Set(['elakiri', 'wedak_na', 'win']);
+const REVERB_KEYS = new Set(['delicious', 'divine', 'sugar_crush']);
 
-// { male: { niyamai: [AudioBuffer|null, ...] }, female: {...} }
+// { male: { sweet: [AudioBuffer|null, ...] }, female: {...} }
 const voiceBuffers = { male: {}, female: {} };
 let voiceLoadStarted = false;
 
@@ -456,7 +406,7 @@ export function stopAnnouncerVoice() {
   activeVoiceSource = null;
 }
 
-export function speakSinhalaFile(key) {
+export function playVoiceFile(key) {
   if (!unlocked) return;
   try {
     const clips = (voiceBuffers[currentVoiceGender] || {})[key];
@@ -515,15 +465,15 @@ export function speakSinhalaFile(key) {
 // combo number so the spoken line can't drift out of sync with the on-screen
 // banner — see src/utils/announcer.js for the single source of that mapping.
 export function playAnnouncerVoice(voiceKey) {
-  if (VOICE_KEYS.includes(voiceKey)) speakSinhalaFile(voiceKey);
+  if (VOICE_KEYS.includes(voiceKey)) playVoiceFile(voiceKey);
 }
 
-export function playSinhalaWin() {
-  speakSinhalaFile('win');
+export function playWinVoice() {
+  playVoiceFile('sugar_crush');
 }
 
-export function playSinhalaLose() {
-  speakSinhalaFile('lose');
+export function playLoseVoice() {
+  playVoiceFile('out_of_moves');
 }
 
 

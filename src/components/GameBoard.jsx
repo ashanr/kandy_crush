@@ -25,8 +25,8 @@ import {
   playMegaBlast,
   unlockAudio,
   playAnnouncerVoice,
-  playSinhalaWin,
-  playSinhalaLose,
+  playWinVoice,
+  playLoseVoice,
 } from '../utils/sound.js';
 import { getAnnouncement } from '../utils/announcer.js';
 import { cellCenter } from '../utils/gridGeometry.js';
@@ -307,10 +307,10 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
       
       if (bombExploded) {
         outcomeSignaled.current = true;
-        playSinhalaLose();
+        playLoseVoice();
         setMessage('Bomb Exploded! 💣');
         // Reason distinguishes this from running out of moves — the result
-        // modal would otherwise claim "Moves ඉවරයි" on a bomb loss.
+        // modal would otherwise claim "Out of Moves" on a bomb loss.
         onLose?.(nextScore, 'bomb');
         return;
       }
@@ -325,7 +325,7 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
       // pursue it. Score levels win with 0 moves left and so bank no bonus.
       const win = (movesRemaining) => {
         outcomeSignaled.current = true;
-        playSinhalaWin();
+        playWinVoice();
         const leftover = Math.max(0, movesRemaining);
         const bonus = leftover * SUGAR_CRUSH_BONUS_PER_MOVE;
         setSugarCrushBonus({ moves: leftover, bonus });
@@ -380,7 +380,7 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
         }
 
         outcomeSignaled.current = true;
-        playSinhalaLose();
+        playLoseVoice();
         onLose?.(nextScore);
       }
     },
@@ -401,7 +401,7 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
   const declineExtraMoves = useCallback(() => {
     setOutOfMovesOffer(false);
     outcomeSignaled.current = true;
-    playSinhalaLose();
+    playLoseVoice();
     onLose?.(pendingLoseScore ?? score);
   }, [onLose, pendingLoseScore, score]);
 
@@ -516,7 +516,7 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
         setScore(nextScore);
         setMovesLeft(nextMoves);
         setSelected(null);
-        if (reshuffled) setMessage('මාරු වෙනවා...');
+        if (reshuffled) setMessage('Shuffling...');
 
         // Input was previously blocked for a flat 550ms on every move, so a plain
         // 3-match felt sluggish while a six-step cascade got cut off partway
@@ -858,13 +858,13 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
           >
             <div className="second-chance-icon">🔄</div>
-            <h2>Moves ඉවරයි!</h2>
+            <h2>Out of Moves!</h2>
             <p className="second-chance-sub">
-              තව {EXTRA_MOVES}ක් ගන්නද? (Out of moves — take {EXTRA_MOVES} more?)
+              Take {EXTRA_MOVES} more moves and keep going?
             </p>
             <div className="result-actions">
               <button type="button" className="result-retry" onClick={declineExtraMoves}>
-                නෑ (Give up)
+                Give Up
               </button>
               <button type="button" onClick={acceptExtraMoves}>
                 +{EXTRA_MOVES} Moves
@@ -882,14 +882,14 @@ export default function GameBoard({ level, startBooster = null, onWin, onLose, o
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
           >
-            <h2>ඉවත් වෙනවද? 🚪</h2>
-            <p>මේ ගේම් එකේ progress නැති වෙනවා.<br />(Leaving now loses this attempt.)</p>
+            <h2>Quit Level? 🚪</h2>
+            <p>Leaving now loses this attempt.</p>
             <div className="result-actions">
               <button type="button" className="result-retry" onClick={() => setConfirmExit(false)}>
-                දිගටම (Keep playing)
+                Keep Playing
               </button>
               <button type="button" onClick={() => { setConfirmExit(false); onExit?.(); }}>
-                ඉවත් වෙන්න (Exit)
+                Exit
               </button>
             </div>
           </motion.div>

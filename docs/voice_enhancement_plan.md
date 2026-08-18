@@ -1,5 +1,13 @@
 # Authentic Sri Lankan Voice Announcer — Enhanced Plan (Revised)
 
+> **SUPERSEDED — historical only.** The app no longer ships a Sinhala announcer or a Sinhala
+> UI. The voice clips were regenerated in English (Sweet / Tasty / Delicious / Divine / Sugar
+> Crush / Out of moves) and the Sinhala mp3s were deleted from `public/voices/`. The Sinhala
+> phrasing below is kept as a record of what was built and why, not as a description of the
+> current state — see section 12 of `implemented_features.md` for that. The engineering
+> conclusions here (prosody ceilings, ducking, reverb, variant fallbacks) still hold and are
+> what the English generator was built on.
+
 > **Revision note:** this plan was revised after auditing it against the codebase. Two sections
 > (prosody tuning, "current flat phrases") described work that was already done or misdescribed
 > the current state; two more (ducking, reverb) had unmet prerequisites that would have made them
