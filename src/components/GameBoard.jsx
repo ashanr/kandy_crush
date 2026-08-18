@@ -98,10 +98,34 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   const pendingWinScore = useRef(null);
   const [hint, setHint] = useState(null);
   const [activityTick, setActivityTick] = useState(0);
+  const [rejected, setRejected] = useState(null);
+
+  // Candies used to be a hardcoded 42px while the cell they sit in is derived
+  // from the board width, so they drifted apart: 90% of the tile on a 406px
+  // board but only 75% at the old 480px cap, leaving a dead ring around every
+  // candy that got worse the bigger the screen. Deriving the sprite from the
+  // measured cell keeps the proportion fixed on every device.
+  const candySize = gridMetrics
+    ? Math.max(24, Math.round(Math.min(gridMetrics.cellW, gridMetrics.cellH) * 0.96))
+    : 42;
 
   useEffect(() => {
     const initialJelly = level.jellyLayout ? level.jellyLayout.map((row) => row.slice()) : createEmptyJellyGrid(ROWS, COLS);
-    setBoard(generateBoard(ROWS, COLS));
+    
+    let initialBoard = generateBoard(ROWS, COLS);
+    if (level.initialBombs) {
+      initialBoard = initialBoard.map((row) => row.map((cell) => ({ ...cell })));
+      let bombsToSpawn = level.initialBombs;
+      while (bombsToSpawn > 0) {
+        const r = Math.floor(Math.random() * ROWS);
+        const c = Math.floor(Math.random() * COLS);
+        if (initialBoard[r][c].bombTimer === undefined && initialBoard[r][c].special === SPECIAL.NONE) {
+          initialBoard[r][c].bombTimer = level.bombTimer || 9;
+          bombsToSpawn -= 1;
+        }
+      }
+    }
+    setBoard(initialBoard);
     setJellyGrid(initialJelly);
     setScore(0);
     setMovesLeft(level.moveLimit);
@@ -138,8 +162,17 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
   }, [onWin]);
 
   const checkOutcome = useCallback(
-    (nextScore, nextMoves, nextJelly) => {
+    (nextScore, nextMoves, nextJelly, bombExploded = false) => {
       if (outcomeSignaled.current) return;
+      
+      if (bombExploded) {
+        outcomeSignaled.current = true;
+        playSinhalaLose();
+        setMessage('Bomb Exploded! 💣');
+        onLose?.(nextScore);
+        return;
+      }
+
       const jellyLeft = nextJelly.flat().reduce((sum, v) => sum + v, 0);
 
       const win = () => {
@@ -215,6 +248,10 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
         playInvalid();
         haptics.invalid();
         setSelected(null);
+        // Shake the pair so a rejected swap reads as "not legal" rather than
+        // as a dropped input. Duration matches the reject-shake keyframes.
+        setRejected([posA, posB]);
+        window.setTimeout(() => setRejected(null), 320);
         return;
       }
       setBusy(true);
@@ -283,7 +320,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
       window.setTimeout(() => {
         setMessage(null);
         setBusy(false);
-        checkOutcome(nextScore, nextMoves, result.jellyGrid);
+        checkOutcome(nextScore, nextMoves, result.jellyGrid, result.bombExploded);
       }, 550);
     },
     [board, jellyGrid, score, movesLeft, busy, checkOutcome, triggerFX],
@@ -313,7 +350,7 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       window.setTimeout(() => {
         setBusy(false);
-        checkOutcome(nextScore, movesLeft, nextJelly);
+        checkOutcome(nextScore, movesLeft, nextJelly, result.bombExploded);
       }, 400);
     },
     [board, jellyGrid, boosterCounts, busy, score, movesLeft, checkOutcome],
@@ -394,54 +431,60 @@ export default function GameBoard({ level, onWin, onLose, onExit }) {
 
       <StarProgress score={score} thresholds={level.starThresholds} />
 
-      <div
-        ref={gridRef}
-        className="game-grid"
-        style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
-      >
-        {gridMetrics && <ParticleCanvas width={gridMetrics.width} height={gridMetrics.height} />}
-        <AnimatePresence mode="popLayout">
-          {board.map((row, r) =>
-            row.map((cell, c) => (
-              <div
-                key={cell.id}
-                className={`candy-cell ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''} ${hint && hint.some(([hr, hc]) => hr === r && hc === c) ? 'hint' : ''}`}
-                onPointerDown={(e) => handlePointerDown(r, c, e)}
-                onPointerUp={handlePointerUp}
-              >
-                {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
+      {/* Takes the leftover height so the board sits centred between the HUD
+          and the booster bar rather than jammed under the score. */}
+      <div className="board-stage">
+        <div
+          ref={gridRef}
+          className="game-grid"
+          style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, position: 'relative' }}
+        >
+          {gridMetrics && <ParticleCanvas width={gridMetrics.width} height={gridMetrics.height} />}
+          <AnimatePresence mode="popLayout">
+            {board.map((row, r) =>
+              row.map((cell, c) => (
+                <div
+                  key={cell.id}
+                  className={`candy-cell ${(r + c) % 2 === 1 ? 'tile-dark' : ''} ${selected && selected[0] === r && selected[1] === c ? 'selected' : ''} ${jellyGrid[r][c] > 0 ? 'has-jelly' : ''} ${hint && hint.some(([hr, hc]) => hr === r && hc === c) ? 'hint' : ''} ${rejected && rejected.some(([rr, rc]) => rr === r && rc === c) ? 'rejected' : ''}`}
+                  onPointerDown={(e) => handlePointerDown(r, c, e)}
+                  onPointerUp={handlePointerUp}
+                >
+                  {jellyGrid[r][c] > 0 && <div className={`jelly-overlay layer-${jellyGrid[r][c]}`} />}
+                  {/* Refills fall in from above the tile instead of popping in
+                      place, which is the motion the original is known for. */}
                   <motion.div
                     layout
                     layoutId={`candy-${cell.id}`}
                     className="candy-wrapper"
-                    initial={{ scale: 0.5, opacity: 0, rotate: -15 }}
-                    animate={{ scale: [1.2, 0.85, 1.05, 1], opacity: 1, rotate: 0 }}
+                    initial={{ y: -46, scale: 0.9, opacity: 0, rotate: -10 }}
+                    animate={{ y: 0, scale: [1.14, 0.92, 1.03, 1], opacity: 1, rotate: 0 }}
                     exit={{ scale: 1.6, opacity: 0, filter: 'brightness(2) blur(2px)' }}
                     whileHover={{ scale: 1.1, rotate: 5 }}
                     whileTap={{ scale: 0.9, rotate: -5 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                   >
-                    <CandySprite color={cell.color} special={cell.special} size={42} />
+                    <CandySprite color={cell.color} special={cell.special} size={candySize} />
                   </motion.div>
-              </div>
-            )),
-          )}
-        </AnimatePresence>
+                </div>
+              )),
+            )}
+          </AnimatePresence>
 
-        {/* Shatter Effects Layer — positions come from cached metrics, so this
-            no longer forces a synchronous layout read per shard per render. */}
-        {gridMetrics && shatters.map((s) => {
-          const { x, y } = cellCenter(gridMetrics, s.row, s.col);
-          return (
-            <CandyShatter
-              key={s.id}
-              color={s.color}
-              x={x}
-              y={y}
-              onComplete={() => setShatters((prev) => prev.filter((item) => item.id !== s.id))}
-            />
-          );
-        })}
+          {/* Shatter Effects Layer — positions come from cached metrics, so this
+              no longer forces a synchronous layout read per shard per render. */}
+          {gridMetrics && shatters.map((s) => {
+            const { x, y } = cellCenter(gridMetrics, s.row, s.col);
+            return (
+              <CandyShatter
+                key={s.id}
+                color={s.color}
+                x={x}
+                y={y}
+                onComplete={() => setShatters((prev) => prev.filter((item) => item.id !== s.id))}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <BoosterBar

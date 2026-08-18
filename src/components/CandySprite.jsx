@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
 import { SPECIAL } from '../game/board.js';
 
-export default function CandySprite({ color, special, size = 48 }) {
+export default function CandySprite({ color, special, bombTimer, size = 48 }) {
   const isColorBomb = special === SPECIAL.BOMB;
   const isWrapped = special === SPECIAL.WRAPPED;
   const isStripedH = special === SPECIAL.STRIPED_H;
   const isStripedV = special === SPECIAL.STRIPED_V;
   const isJellyFish = special === SPECIAL.JELLY_FISH;
-  const isSpecial = isColorBomb || isWrapped || isStripedH || isStripedV || isJellyFish;
+  const isCoconutWheel = special === SPECIAL.COCONUT_WHEEL;
+  const isLucky = special === SPECIAL.LUCKY;
+  const isSpecial = isColorBomb || isWrapped || isStripedH || isStripedV || isJellyFish || isCoconutWheel || isLucky;
 
   // Random staggered delay so candies don't all glint at the same time
   const glintDelay = useMemo(() => `${(Math.random() * 6 + 2).toFixed(1)}s`, []);
@@ -67,8 +69,51 @@ export default function CandySprite({ color, special, size = 48 }) {
           <circle cx="20" cy="24" r="3" fill="#ffffff" />
           <circle cx="19" cy="24" r="1.5" fill="#0f172a" />
         </svg>
+      ) : isCoconutWheel ? (
+        /* 3. COCONUT WHEEL SPECIAL CANDY */
+        <svg width={size} height={size} viewBox="0 0 60 60" fill="none">
+          <defs>
+            <radialGradient id="cocoHusk" cx="30" cy="30" r="28" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#8d5b4c" />
+              <stop offset="1" stopColor="#4a2e2b" />
+            </radialGradient>
+            <radialGradient id="cocoFlesh" cx="30" cy="30" r="20" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#ffffff" />
+              <stop offset="0.8" stopColor="#f3f4f6" />
+              <stop offset="1" stopColor="#d1d5db" />
+            </radialGradient>
+          </defs>
+          {/* Outer Husk Shell */}
+          <circle cx="30" cy="30" r="26" fill="url(#cocoHusk)" stroke="#ffb703" strokeWidth="3" />
+          {/* Inner White Flesh */}
+          <circle cx="30" cy="30" r="18" fill="url(#cocoFlesh)" />
+          {/* Center Hole */}
+          <circle cx="30" cy="30" r="8" fill="#4a2e2b" />
+          {/* Golden Radial Spokes / Speed Lines */}
+          <line x1="30" y1="6" x2="30" y2="12" stroke="#ffb703" strokeWidth="3" strokeLinecap="round" />
+          <line x1="30" y1="48" x2="30" y2="54" stroke="#ffb703" strokeWidth="3" strokeLinecap="round" />
+          <line x1="6" y1="30" x2="12" y2="30" stroke="#ffb703" strokeWidth="3" strokeLinecap="round" />
+          <line x1="48" y1="30" x2="54" y2="30" stroke="#ffb703" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      ) : isLucky ? (
+        /* 4. LUCKY CANDY SPECIAL ITEM */
+        <svg width={size} height={size} viewBox="0 0 60 60" fill="none">
+          <defs>
+            <linearGradient id="luckyGrad" x1="10" y1="10" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#e0f2fe" />
+              <stop offset="0.5" stopColor="#38bdf8" />
+              <stop offset="1" stopColor="#0284c7" />
+            </linearGradient>
+          </defs>
+          {/* Silver/Blue Holographic Diamond */}
+          <polygon points="30,6 52,30 30,54 8,30" fill="url(#luckyGrad)" stroke="#ffffff" strokeWidth="3" />
+          {/* Inner Glow Rim */}
+          <polygon points="30,12 44,30 30,48 16,30" fill="none" stroke="#e0f2fe" strokeWidth="2" opacity="0.8" />
+          {/* Golden Checkmark ✓ */}
+          <path d="M22 30 L27 36 L39 20" stroke="#ffd93d" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       ) : (
-        /* 3. NORMAL CANDY WITH GLOSSY SVG SHAPES */
+        /* 5. NORMAL CANDY WITH GLOSSY SVG SHAPES */
         <svg width={size} height={size} viewBox="0 0 60 60" fill="none">
           <defs>
             {/* Color Gradients */}
@@ -205,6 +250,45 @@ export default function CandySprite({ color, special, size = 48 }) {
       {isSpecial && (
         <div className="candy-glow-ring" />
       )}
+
+      {/* CANDY BOMB OVERLAY (Timed Hazard) */}
+      {bombTimer !== undefined && (
+        <div 
+          className={`candy-bomb-overlay ${bombTimer <= 3 ? 'danger-pulse' : ''}`}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'radial-gradient(circle at 40% 40%, rgba(50,50,50,0.8) 0%, rgba(0,0,0,0.95) 100%)',
+            borderRadius: '50%',
+            boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.5)',
+            border: bombTimer <= 3 ? '2px solid #ef4444' : '2px solid #333',
+            pointerEvents: 'none',
+            zIndex: 10,
+            animation: bombTimer <= 3 ? 'dangerPulse 0.5s infinite alternate' : 'none',
+          }}
+        >
+          {/* Burning spark fuse effect */}
+          <div style={{ position: 'absolute', top: -6, right: 2, fontSize: '14px', animation: 'fuseSpark 0.2s infinite alternate' }}>🔥</div>
+          
+          {/* Digital Countdown Badge */}
+          <div style={{
+            background: '#000',
+            color: bombTimer <= 3 ? '#ef4444' : '#fff',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            fontSize: `${size * 0.45}px`,
+            padding: '0px 4px',
+            borderRadius: '4px',
+            border: `1px solid ${bombTimer <= 3 ? '#ef4444' : '#444'}`,
+            textShadow: bombTimer <= 3 ? '0 0 5px #ef4444' : 'none',
+          }}>
+            {bombTimer}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -247,6 +331,8 @@ function getColorDark(color) {
 
 function getGlowColor(color, special) {
   if (special === SPECIAL.BOMB) return '#ffd93d';
+  if (special === SPECIAL.COCONUT_WHEEL) return '#ffb703';
+  if (special === SPECIAL.LUCKY) return '#38bdf8';
   const map = {
     red: '#ff4d6d',
     orange: '#ff9f43',

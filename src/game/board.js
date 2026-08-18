@@ -14,6 +14,8 @@ export const SPECIAL = {
   WRAPPED: 'wrapped',
   BOMB: 'bomb',
   JELLY_FISH: 'jelly-fish',
+  COCONUT_WHEEL: 'coconut-wheel',
+  LUCKY: 'lucky',
 };
 
 export const SCORE_PER_CANDY = 10;
@@ -28,8 +30,8 @@ export function randomColor(rng = Math.random) {
   return COLORS[Math.floor(rng() * COLORS.length)];
 }
 
-export function createCandy(color, special = SPECIAL.NONE) {
-  return { id: nextId(), color, special };
+export function createCandy(color, special = SPECIAL.NONE, bombTimer = undefined) {
+  return { id: nextId(), color, special, bombTimer };
 }
 
 export function createEmptyJellyGrid(rows, cols) {
@@ -296,6 +298,37 @@ export function activateSpecial(board, r, c, cell, explosionCells, visited = new
     }
   } else if (cell.special === SPECIAL.JELLY_FISH) {
     cellsToActivate.push(...pickJellyFishTargets(board, jellyGrid, r, c, explosionCells, rng));
+  } else if (cell.special === SPECIAL.COCONUT_WHEEL) {
+    // Direct activation (e.g. caught in blast): rolls 3 spaces horizontally
+    const rollDir = ctx.rollDir || [0, 1]; // [dr, dc]
+    const [dr, dc] = rollDir;
+    for (let step = 1; step <= 3; step += 1) {
+      const rr = r + step * dr;
+      const cc = c + step * dc;
+      if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
+        explosionCells.add(cellKey(rr, cc));
+        // Perpendicular laser beam
+        if (dr === 0) {
+          for (let rowIdx = 0; rowIdx < rows; rowIdx += 1) cellsToActivate.push([rowIdx, cc]);
+        } else {
+          for (let colIdx = 0; colIdx < cols; colIdx += 1) cellsToActivate.push([rr, colIdx]);
+        }
+      }
+    }
+  } else if (cell.special === SPECIAL.LUCKY) {
+    // Lucky Candy Auto-Transformation based on level objective / active jelly
+    const hasJelly = jellyGrid && jellyGrid.some((row) => row.some((val) => val > 0));
+    if (hasJelly || ctx.objectiveType === 'jelly') {
+      // Transform into Jelly Fish
+      cellsToActivate.push(...pickJellyFishTargets(board, jellyGrid, r, c, explosionCells, rng));
+    } else {
+      // Transform into Color Bomb clear for maximum score
+      for (let rr = 0; rr < rows; rr += 1) {
+        for (let cc = 0; cc < cols; cc += 1) {
+          if (board[rr][cc] && board[rr][cc].color === cell.color) cellsToActivate.push([rr, cc]);
+        }
+      }
+    }
   }
 
   cellsToActivate.forEach(([rr, cc]) => {
@@ -430,6 +463,32 @@ export function clearAndCascade(board, jellyGrid, explosionCells, rng = Math.ran
 }
 
 // ---------------------------------------------------------------------------
+// Candy Bomb countdown resolution. Applies at the very end of any valid move.
+// ---------------------------------------------------------------------------
+
+export function finalizeMove(result) {
+  if (!result.valid) return result;
+
+  let bombExploded = false;
+  const board = result.board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
+  
+  for (let r = 0; r < board.length; r += 1) {
+    for (let c = 0; c < board[r].length; c += 1) {
+      const cell = board[r][c];
+      if (cell && cell.bombTimer !== undefined) {
+        if (cell.bombTimer <= 1) {
+          bombExploded = true;
+          cell.bombTimer = 0;
+        } else {
+          cell.bombTimer -= 1;
+        }
+      }
+    }
+  }
+  return { ...result, board, bombExploded };
+}
+
+// ---------------------------------------------------------------------------
 // Public move API. Special-candy-involved swaps (bomb combos, special+special
 // combos, and special+normal single detonations) are delegated to
 // specialCombos.js. That module imports primitives back from this file,
@@ -449,7 +508,7 @@ export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
   const cellB = board[r2][c2];
 
   if (cellA.special !== SPECIAL.NONE || cellB.special !== SPECIAL.NONE) {
-    return handleSpecialSwap(board, jellyGrid, posA, posB, cellA, cellB, rng);
+    return finalizeMove(handleSpecialSwap(board, jellyGrid, posA, posB, cellA, cellB, rng));
   }
 
   const swapped = swapCells(board, posA, posB);
@@ -459,7 +518,7 @@ export function attemptMove(board, jellyGrid, posA, posB, rng = Math.random) {
   }
 
   const result = resolveBoard(swapped, jellyGrid, { triggerPos: posB, rng });
-  return { valid: true, ...result };
+  return finalizeMove({ valid: true, ...result });
 }
 
 // ---------------------------------------------------------------------------
@@ -528,7 +587,7 @@ export function ensurePlayable(board, rng = Math.random) {
 // ---------------------------------------------------------------------------
 
 export function useHammerBooster(board, jellyGrid, pos, rng = Math.random) {
-  return clearAndCascade(board, jellyGrid, new Set([cellKey(...pos)]), rng);
+  return finalizeMove(clearAndCascade(board, jellyGrid, new Set([cellKey(...pos)]), rng));
 }
 
 export function useShuffleBooster(board, jellyGrid, rng = Math.random) {
@@ -540,5 +599,5 @@ export function useColorBombBooster(board, pos) {
   const [r, c] = pos;
   const next = cloneBoard(board);
   next[r][c] = createCandy(next[r][c].color, SPECIAL.BOMB);
-  return { valid: true, board: next, score: 0 };
+  return finalizeMove({ valid: true, board: next, score: 0 });
 }

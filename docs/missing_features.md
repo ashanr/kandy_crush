@@ -6,16 +6,10 @@ This document details all single-player mechanics, special candies, blockers, gr
 
 ## 🍬 1. Additional Special Candies & Combos
 
-> **Update:** Jelly Fish (2x2 square match, jelly-seeking detonation) is now implemented — see `docs/implemented_features.md`. The items below are the parts of the original special-candy spec that are still missing.
+> **Update:** Jelly Fish, **Coconut Wheel** (3-space directional rolling), and **Lucky Candy** (objective-based auto-transformation) are now fully implemented — see `docs/implemented_features.md`.
 
-- **Coconut Wheel**:
-  - **Behavior**: When swapped with any adjacent candy, rolls in a straight line across 3 grid spaces, converting each candy it touches into a Striped Candy and instantly detonating them.
-- **Lucky Candy**:
-  - **Behavior**: Appears as a neutral tick-mark candy. When matched, automatically transforms into whichever candy color or special candy is needed to complete active level objectives.
 - **Flavor-Specific Jelly Fish Combos**:
-  - Jelly Fish + Striped/Wrapped/Jelly Fish now falls back to each special detonating its own individual effect (a functional but generic combo — see `docs/implemented_features.md`), rather than the bespoke effects originally envisioned:
-  - **Jelly Fish + Striped Candy**: Transforms the fish into Striped Fish that detonate full rows/columns upon reaching their targets.
-  - **Jelly Fish + Color Bomb**: Currently handled by the generic bomb+special path (converts every same-color candy into a Jelly Fish and detonates them all), not the originally envisioned "swarm of 10+ fish" effect specifically.
+  - Jelly Fish + Striped/Wrapped/Jelly Fish falls back to each special detonating its own individual effect (a functional combo), rather than bespoke swarm shapes.
 
 ---
 

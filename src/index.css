@@ -279,11 +279,53 @@ button {
   touch-action: none;
   /* Background now rendered by DynamicBackground canvas */
   background: transparent;
+
+  /* Board size is driven by whichever axis is tighter, never by width alone.
+     The old rule was `width: 100%; max-width: 480px` with no height term and no
+     media queries anywhere in this file, so on a 430x932 phone the board came
+     out 406px tall inside a 932px screen — 44% of the viewport, with ~300px of
+     dead space stranded under the booster bar.
+
+     --board-chrome is the fixed furniture above and below the board (HUD 45 +
+     star bar 22 + boosters 76 + padding 24) plus a margin so the board never
+     presses against either. Everything on this screen is then sized to
+     --board-size, so the HUD, score bar and boosters line up with the board's
+     edges instead of each running to their own 480px cap. */
+  --board-chrome: calc(196px + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+  --board-size: min(
+    calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)),
+    calc(100vh - var(--board-chrome)),
+    560px
+  );
+}
+
+/* dvh tracks the mobile URL bar; vh above is the fallback for older WebViews.
+   Kept in @supports because an unrecognised unit inside min() would invalidate
+   the whole declaration and collapse the board to `auto`. */
+@supports (height: 100dvh) {
+  .game-board-screen {
+    --board-size: min(
+      calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)),
+      calc(100dvh - var(--board-chrome)),
+      560px
+    );
+  }
+}
+
+/* Takes the leftover vertical space and centres the board in it, which pins the
+   booster bar to the bottom of the screen without absolute positioning. */
+.board-stage {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-hud {
-  width: 100%;
-  max-width: 480px;
+  width: var(--board-size);
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -322,13 +364,15 @@ button {
 }
 
 .game-grid {
-  width: 100%;
-  max-width: 480px;
+  width: var(--board-size, 100%);
+  height: var(--board-size, auto);
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   display: grid;
-  gap: 2px;
-  /* Glassmorphism */
-  background: var(--glass-bg);
+  gap: 3px;
+  /* Darkened glass. The old 6%-white panel sat too close to the background for
+     the candies to read as sitting *in* a grid; they floated on frosted glass. */
+  background: linear-gradient(180deg, rgba(46, 18, 68, 0.5), rgba(24, 8, 40, 0.62));
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border-radius: 20px;
@@ -364,6 +408,10 @@ button {
   z-index: 0;
 }
 
+/* Tile sockets. A checkerboard under the candies is what makes a match-3 board
+   read as a grid rather than as loose sprites on a panel — at 3% white the old
+   cell background was effectively invisible. The alternating class comes from
+   (row + col) in GameBoard, so it stays keyed to the slot, not the candy. */
 .candy-cell {
   position: relative;
   display: flex;
@@ -371,13 +419,33 @@ button {
   justify-content: center;
   touch-action: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.16);
   transition: background 0.15s;
   z-index: 1;
 }
 
+.candy-cell.tile-dark {
+  background: rgba(0, 0, 0, 0.16);
+}
+
 .candy-cell:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* An illegal swap used to play a sound and silently deselect, which reads as
+   "nothing happened" rather than "that move isn't legal". */
+.candy-cell.rejected {
+  animation: reject-shake 0.32s ease;
+}
+
+@keyframes reject-shake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20%      { transform: translateX(-4px) rotate(-5deg); }
+  50%      { transform: translateX(4px) rotate(5deg); }
+  80%      { transform: translateX(-2px) rotate(-2deg); }
 }
 
 .candy-cell.selected {
@@ -575,8 +643,8 @@ button {
 /* ---------------- Booster Bar ---------------- */
 
 .booster-bar {
-  width: 100%;
-  max-width: 480px;
+  width: var(--board-size);
+  max-width: 100%;
   display: flex;
   justify-content: center;
   gap: 12px;
@@ -772,8 +840,8 @@ button {
 /* ---------------- Star progress bar ---------------- */
 
 .star-progress {
-  width: 100%;
-  max-width: 480px;
+  width: var(--board-size);
+  max-width: 100%;
   padding: 0 4px;
   margin-bottom: 10px;
 }

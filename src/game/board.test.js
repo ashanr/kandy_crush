@@ -425,3 +425,106 @@ describe('special+special pairings with no explicit combo shape', () => {
     expect(result.score).toBeGreaterThan(0);
   });
 });
+
+describe('Coconut Wheel and Lucky Candy mechanics', () => {
+  it('Coconut Wheel rolls 3 spaces and triggers perpendicular laser beams', () => {
+    const board = baselineBoard();
+    board[2][1] = createCandy('red', SPECIAL.COCONUT_WHEEL);
+    const jelly = createEmptyJellyGrid(8, 8);
+
+    // Swap [2,1] to [2,2] (horizontal right roll across 3 spaces)
+    const result = attemptMove(board, jelly, [2, 1], [2, 2], makeRng(42));
+    expect(result.valid).toBe(true);
+    expect(result.score).toBeGreaterThanOrEqual(100);
+  });
+
+  it('Lucky Candy transforms into Jelly Fish when active jelly is present', () => {
+    const board = baselineBoard();
+    board[0][0] = createCandy('red', SPECIAL.LUCKY);
+    const jelly = createEmptyJellyGrid(8, 8);
+    jelly[3][3] = 1;
+
+    const explosionCells = new Set();
+    activateSpecial(board, 0, 0, board[0][0], explosionCells, new Set(), { jellyGrid: jelly, rng: makeRng(5) });
+    expect(explosionCells.has('3,3')).toBe(true);
+  });
+});
+
+describe('Candy Bombs', () => {
+  it('decrements bomb timers on a valid move', () => {
+    const board = baselineBoard();
+    board[0][0] = createCandy('red', SPECIAL.NONE, 3);
+    board[1][0] = createCandy('orange');
+    board[2][0] = createCandy('orange');
+    board[0][1] = createCandy('orange');
+
+    const jellyGrid = createEmptyJellyGrid(8, 8);
+    const rng = makeRng(42);
+
+    const result = attemptMove(board, jellyGrid, [0, 0], [0, 1], rng);
+    
+    expect(result.valid).toBe(true);
+    let foundBomb = false;
+    for (const row of result.board) {
+      for (const cell of row) {
+        if (cell.color === 'red' && cell.bombTimer !== undefined) {
+          expect(cell.bombTimer).toBe(2);
+          foundBomb = true;
+        }
+      }
+    }
+    expect(foundBomb).toBe(true);
+    expect(result.bombExploded).toBe(false);
+  });
+
+  it('triggers bombExploded when a bomb timer reaches 0', () => {
+    const board = baselineBoard();
+    board[0][0] = createCandy('red', SPECIAL.NONE, 1);
+    board[1][0] = createCandy('orange');
+    board[2][0] = createCandy('orange');
+    board[0][1] = createCandy('orange');
+    
+    const jellyGrid = createEmptyJellyGrid(8, 8);
+    const rng = makeRng(42);
+
+    const result = attemptMove(board, jellyGrid, [0, 0], [0, 1], rng);
+    
+    expect(result.valid).toBe(true);
+    expect(result.bombExploded).toBe(true);
+    
+    let foundBomb = false;
+    for (const row of result.board) {
+      for (const cell of row) {
+        if (cell.color === 'red' && cell.bombTimer !== undefined) {
+          expect(cell.bombTimer).toBe(0);
+          foundBomb = true;
+        }
+      }
+    }
+    expect(foundBomb).toBe(true);
+  });
+
+  it('safely defuses the bomb when the bomb is matched', () => {
+    const board = baselineBoard();
+    board[0][0] = createCandy('red', SPECIAL.NONE, 2);
+    board[1][1] = createCandy('red');
+    board[2][1] = createCandy('red');
+    board[0][1] = createCandy('orange');
+
+    const jellyGrid = createEmptyJellyGrid(8, 8);
+    const rng = makeRng(42);
+
+    const result = attemptMove(board, jellyGrid, [0, 0], [0, 1], rng);
+    
+    expect(result.valid).toBe(true);
+    expect(result.bombExploded).toBe(false);
+    
+    let foundBomb = false;
+    for (const row of result.board) {
+      for (const cell of row) {
+        if (cell && cell.bombTimer !== undefined) foundBomb = true;
+      }
+    }
+    expect(foundBomb).toBe(false);
+  });
+});

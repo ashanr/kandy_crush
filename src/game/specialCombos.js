@@ -154,9 +154,49 @@ function resolveSingleDetonation(board, jellyGrid, posA, posB, cellA, cellB, rng
   return clearAndCascade(swapped, jellyGrid, explosionCells, rng);
 }
 
+function resolveCoconutWheelSwap(board, jellyGrid, posWheel, posOther, cellWheel, cellOther, rng) {
+  const rows = board.length;
+  const cols = board[0].length;
+  const explosionCells = new Set();
+  const dr = posOther[0] - posWheel[0];
+  const dc = posOther[1] - posWheel[1];
+
+  explosionCells.add(cellKey(...posWheel));
+  explosionCells.add(cellKey(...posOther));
+
+  for (let step = 1; step <= 3; step += 1) {
+    const r = posWheel[0] + step * dr;
+    const c = posWheel[1] + step * dc;
+    if (r >= 0 && r < rows && c >= 0 && c < cols) {
+      explosionCells.add(cellKey(r, c));
+      // Perpendicular striped laser beam
+      if (dr === 0) {
+        // Horizontal roll -> Vertical laser beam across full column
+        for (let rr = 0; rr < rows; rr += 1) explosionCells.add(cellKey(rr, c));
+      } else {
+        // Vertical roll -> Horizontal laser beam across full row
+        for (let cc = 0; cc < cols; cc += 1) explosionCells.add(cellKey(r, cc));
+      }
+    }
+  }
+
+  chainDetonateSpecialsInSet(board, explosionCells, { jellyGrid, rng });
+  return clearAndCascade(board, jellyGrid, explosionCells, rng);
+}
+
 export function handleSpecialSwap(board, jellyGrid, posA, posB, cellA, cellB, rng = Math.random) {
   const aSpecial = cellA.special !== SPECIAL.NONE;
   const bSpecial = cellB.special !== SPECIAL.NONE;
+
+  // Coconut Wheel swap
+  if (cellA.special === SPECIAL.COCONUT_WHEEL || cellB.special === SPECIAL.COCONUT_WHEEL) {
+    const wheelIsA = cellA.special === SPECIAL.COCONUT_WHEEL;
+    const posWheel = wheelIsA ? posA : posB;
+    const posOther = wheelIsA ? posB : posA;
+    const cellWheel = wheelIsA ? cellA : cellB;
+    const cellOther = wheelIsA ? cellB : cellA;
+    return resolveCoconutWheelSwap(board, jellyGrid, posWheel, posOther, cellWheel, cellOther, rng);
+  }
 
   if (cellA.special === SPECIAL.BOMB || cellB.special === SPECIAL.BOMB) {
     const bombIsA = cellA.special === SPECIAL.BOMB;

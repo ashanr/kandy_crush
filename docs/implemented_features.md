@@ -26,6 +26,11 @@ This document provides a comprehensive overview of all features currently built 
 - **Jelly Fish**:
   - **2x2 Square Match**: Creates a **Jelly Fish** (yields to any overlapping 3-in-a-row — line matches always take priority over a square).
   - **Detonation**: Targets 3 cells, preferring cells that still carry jelly; falls back to random candies once jelly targets are exhausted.
+- **Coconut Wheel**:
+  - **3-Space Directional Roll**: Swapping a Coconut Wheel rolls it **3 grid spaces** in the direction of the swipe.
+  - **Perpendicular Laser Detonation**: Converts every tile in its path into a Striped Candy and instantly detonates it, triggering horizontal/vertical laser beams across the board.
+- **Lucky Candy**:
+  - **Objective-Based Auto-Transformation**: Acts as a neutral special gem (`✓`). When matched or detonated, automatically transforms into whichever item fulfills active level objectives (a **Jelly Fish** on Jelly levels, or a **Color Bomb / Striped Candy** on Score levels).
 - **Special + Normal Swap → Single Detonation**: Swapping any special candy with a plain candy always succeeds (even with no incidental 3-match) and detonates the special once at its new position.
 - **Special-on-Special Swap Combos** (`src/game/specialCombos.js`):
   - **Striped + Striped**: Cross-beam clearing the entire row AND column.

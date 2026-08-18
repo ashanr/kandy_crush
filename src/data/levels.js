@@ -71,8 +71,10 @@ export const LEVELS = [
     id: 5,
     name: 'Chocolate Chasm',
     objective: { type: 'jelly' },
-    moveLimit: 12,
+    moveLimit: 15,
     jellyLayout: buildJellyBlock(8, 8, 4, 2),
+    initialBombs: 3,
+    bombTimer: 12,
     starThresholds: [1400, 2100, 2800],
   },
 ];
